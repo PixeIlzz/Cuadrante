@@ -285,7 +285,7 @@
         <input type="password" id="gh-token" placeholder="Token (PAT con permiso Contents)" autocomplete="off">
       </div>
       <div class="setting-row" style="margin-top:8px">
-        <span class="note">Se configura una sola vez por dispositivo. Al pulsar "Publicar" en el cuadrante, se sube el archivo <strong>datos.json</strong> al repositorio y el QR permanente pasa a mostrar la versión nueva (tarda 1-2 min en refrescar). El token se guarda solo en este dispositivo y no se incluye en las copias de seguridad.</span>
+        <span class="note">Se configura una sola vez por dispositivo. Al pulsar "Publicar" en el cuadrante, se sube el archivo <strong>datos.json</strong> al repositorio y el QR permanente pasa a mostrar la versión nueva (tarda 1-2 min en refrescar). El token se guarda en este dispositivo y también en las copias de seguridad que exportes: guarda ese archivo en sitio seguro y no lo subas al repositorio.</span>
       </div>
     </div>
 
@@ -295,7 +295,7 @@
         <button class="btn" id="btn-export">Exportar datos</button>
         <button class="btn" id="btn-import">Importar datos</button>
         <input type="file" id="import-file" accept=".json,application/json" style="display:none">
-        <span class="note">Exportar descarga un archivo con tus trabajadores y el cuadrante actual. Importar lo restaura desde ese archivo (sustituye lo que haya). Úsalo para pasar los datos a otro dispositivo o guardar una copia.</span>
+        <span class="note">Exportar descarga un archivo con tus trabajadores y el cuadrante actual. Importar lo restaura desde ese archivo (sustituye lo que haya). Incluye también la configuración de GitHub (con el token), así configuras otro dispositivo importando el archivo. No compartas este archivo ni lo subas al repositorio.</span>
       </div>
     </div>
 
@@ -397,6 +397,10 @@ function usedShifts(workerId){
   let n = 0;
   for(const k in state.cells){
     n += state.cells[k].filter(id=>id===workerId).length;
+  }
+  // Cada día cubierto por TODOS cuenta como 1 turno para cada trabajador de la lista
+  for(const d of DAYS){
+    if(dayHasAll(d.id)) n++;
   }
   return n;
 }
@@ -752,7 +756,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 
 /* =================== Copia de seguridad =================== */
 document.getElementById('btn-export').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const data = Object.assign({}, state, { github: ghConfig });
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'cuadrante-datos.json';
@@ -775,6 +780,10 @@ document.getElementById('import-file').addEventListener('change', e=>{
         toast('El archivo no tiene el formato esperado'); return;
       }
       state = { workers: s.workers, cells: s.cells || {}, dateLabel: s.dateLabel || '' };
+      if(s.github && typeof s.github === 'object'){
+        ghConfig = Object.assign(ghConfig, s.github);
+        saveGhConfig();
+      }
       selectedId = null;
       renderAll(); scheduleSave();
       toast('Datos importados');
