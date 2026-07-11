@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cuadrante de turnos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+<style>
+  :root{
+    --ink:#182135;
+    --ink-soft:#5a6478;
+    --paper:#f2f4f7;
+    --card:#ffffff;
+    --line:#dde2ea;
+    --accent:#2456c8;
+    --accent-soft:#e8eefb;
+    --cam:#2456c8;   --cam-bg:#e8eefb;
+    --par:#c2491d;   --par-bg:#fdece4;
+    --coc:#1d7a4f;   --coc-bg:#e4f5ec;
+    --bad:#c62838;   --bad-bg:#fdeaec;
+    --ok:#1d7a4f;
+    --radius:10px;
+    font-size:15px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--paper);color:var(--ink);
+    min-height:100vh;
+  }
+  h1,h2,.day-name,.tab-btn{
+    font-family:"Arial Narrow","Segoe UI",sans-serif;
+    letter-spacing:.02em;
+  }
+
+  /* ---------- Layout general ---------- */
+  header{
+    background:var(--ink);color:#fff;
+    padding:10px 14px;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  }
+  header h1{font-size:1.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tab-btn{
+    background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
+    padding:6px 14px;border-radius:20px;font-size:.9rem;cursor:pointer;font-weight:600;
+  }
+  .tab-btn.active{background:#fff;color:var(--ink);border-color:#fff}
+  main{padding:12px;max-width:1400px;margin:0 auto}
+  .hidden{display:none !important}
+
+  button{font:inherit;cursor:pointer}
+  .btn{
+    border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:8px 14px;border-radius:var(--radius);font-weight:600;font-size:.88rem;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.danger{background:var(--bad-bg);border-color:#f0c3c8;color:var(--bad)}
+
+  /* ---------- Barra superior del cuadrante ---------- */
+  .toolbar{
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
+  }
+  .toolbar input[type=text]{
+    flex:1;min-width:150px;
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:9px 12px;font:inherit;background:var(--card);
+  }
+  .toolbar input[type=text]::placeholder{color:#a0a8b8}
+
+  /* ---------- Tira de trabajadores ---------- */
+  .worker-strip{
+    position:sticky;top:0;z-index:30;
+    background:var(--paper);
+    padding:8px 0;
+    display:flex;gap:8px;overflow-x:auto;
+    border-bottom:2px solid var(--line);
+    margin-bottom:12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .worker-card{
+    flex:0 0 auto;
+    background:var(--card);border:2px solid var(--line);border-radius:var(--radius);
+    padding:8px 12px;min-width:110px;
+    cursor:grab;user-select:none;
+    transition:border-color .12s, box-shadow .12s, opacity .12s;
+  }
+  .worker-card .w-name{font-weight:700;font-size:.95rem;white-space:nowrap}
+  .worker-card .w-hours{font-size:.75rem;color:var(--ink-soft);margin-top:2px}
+  .worker-card .w-bar{height:4px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+  .worker-card .w-bar i{display:block;height:100%;background:var(--accent);border-radius:2px}
+  .worker-card.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .worker-card.exhausted{opacity:.4;cursor:not-allowed}
+  .worker-card.all-card{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .worker-card.all-card .w-hours{color:#c8cede}
+  .worker-card.all-card.selected{box-shadow:0 0 0 3px #9db4e8}
+  .strip-hint{font-size:.75rem;color:var(--ink-soft);margin:-6px 0 10px}
+
+  /* ---------- Grid de días ---------- */
+  .grid-scroller{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+  .grid{display:flex;gap:10px;min-width:min-content}
+  .day-col{
+    flex:0 0 150px;width:150px;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .day-col.night{border-color:#b8c0d4}
+  .day-name{
+    background:var(--ink);color:#fff;text-align:center;
+    padding:7px 4px;font-weight:700;font-size:.92rem;text-transform:uppercase;letter-spacing:.05em;
+  }
+  .day-col.night .day-name{background:#3a4460}
+  .role-block{padding:7px 7px 9px;border-top:1px dashed var(--line)}
+  .role-block:first-of-type{border-top:none}
+  .role-head{
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    margin-bottom:5px;
+  }
+  .role-head .count{
+    font-size:.7rem;padding:1px 7px;border-radius:10px;font-weight:700;
+    background:var(--bad-bg);color:var(--bad);
+  }
+  .role-head .count.ok{background:var(--coc-bg);color:var(--ok)}
+  .role-cam .role-head{color:var(--cam)}
+  .role-par .role-head{color:var(--par)}
+  .role-coc .role-head{color:var(--coc)}
+  .drop-zone{
+    min-height:34px;border-radius:7px;
+    display:flex;flex-direction:column;gap:4px;
+    padding:3px;
+    border:1.5px dashed transparent;
+    transition:border-color .12s, background .12s;
+  }
+  .role-cam .drop-zone{background:var(--cam-bg)}
+  .role-par .drop-zone{background:var(--par-bg)}
+  .role-coc .drop-zone{background:var(--coc-bg)}
+  .drop-zone.armed{border-color:var(--accent);background:#fff}
+  .drop-zone.drag-over{border-color:var(--accent);background:#fff}
+  .chip{
+    background:#fff;border:1px solid var(--line);border-radius:6px;
+    padding:4px 8px;font-size:.8rem;font-weight:600;
+    display:flex;justify-content:space-between;align-items:center;gap:6px;
+    cursor:pointer;
+  }
+  .chip .x{color:var(--bad);font-weight:700;font-size:.85rem;line-height:1}
+  .chip.all-chip{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip.all-chip .x{color:#ff9daa}
+  .all-day{
+    padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;
+    min-height:180px;justify-content:center;
+    background:repeating-linear-gradient(-45deg,#f2f4f7 0 8px,#e9edf3 8px 16px);
+  }
+  .all-day-chip{width:100%;justify-content:center;font-size:.95rem;padding:10px}
+  .all-day-chip span:first-child{flex:1;text-align:center}
+  .all-day-note{font-size:.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+
+  /* ---------- Sección Equipo ---------- */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+  .panel h2{font-size:1rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+  .add-form{display:flex;gap:8px;flex-wrap:wrap}
+  .add-form input{
+    border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;font:inherit;
+  }
+  .add-form input[type=text]{flex:2;min-width:140px}
+  .add-form input[type=number]{flex:1;min-width:90px;max-width:120px}
+  .worker-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .worker-row{
+    display:flex;align-items:center;gap:8px;
+    border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;
+  }
+  .worker-row input[type=text]{flex:2;min-width:100px;border:none;font:inherit;font-weight:600;background:transparent}
+  .worker-row input[type=number]{width:64px;border:1px solid var(--line);border-radius:6px;padding:5px;font:inherit;text-align:center}
+  .worker-row .h-label{font-size:.75rem;color:var(--ink-soft)}
+  .worker-row .del{background:none;border:none;color:var(--bad);font-size:1.05rem;font-weight:700;padding:4px 8px}
+  .setting-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .setting-row input[type=number]{width:70px;border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;text-align:center}
+  .setting-row .note{font-size:.78rem;color:var(--ink-soft);flex-basis:100%}
+  .empty-note{color:var(--ink-soft);font-size:.85rem;padding:10px 0}
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:9px 16px;border-radius:20px;
+    font-size:.85rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:100;
+    max-width:90vw;text-align:center;
+  }
+  #toast.show{opacity:1}
+
+  /* ---------- Zona de exportación ---------- */
+  #export-title{display:none;padding:10px 4px 14px;text-align:center;font-size:1.2rem;font-weight:700}
+
+  /* ---------- Modo solo lectura (vista empleados) ---------- */
+  body.view-mode header .tabs,
+  body.view-mode .toolbar,
+  body.view-mode .worker-strip,
+  body.view-mode .strip-hint{display:none !important}
+  body.view-mode #export-title{display:block}
+  body.view-mode .chip{cursor:default}
+  body.view-mode .chip .x{display:none}
+
+  /* ---------- Modal QR ---------- */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(24,33,53,.55);z-index:90;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal{
+    background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;
+    text-align:center;
+  }
+  .modal h3{font-size:1rem;margin-bottom:12px}
+  .modal #qr-box{display:flex;justify-content:center;margin-bottom:12px}
+  .modal .qr-link{
+    font-size:.7rem;color:var(--ink-soft);word-break:break-all;
+    max-height:60px;overflow:auto;margin-bottom:12px;
+    background:var(--paper);border-radius:8px;padding:8px;text-align:left;
+  }
+  .modal .qr-warn{font-size:.75rem;color:var(--bad);margin-bottom:12px}
+  .modal .row{display:flex;gap:8px;justify-content:center}
+
+  @media print{
+    header,.toolbar,.worker-strip,.strip-hint,#tab-equipo{display:none !important}
+    body{background:#fff}
+    main{padding:0;max-width:none}
+    #export-title{display:block}
+    .grid-scroller{overflow:visible}
+    .grid{flex-wrap:wrap}
+    .day-col{flex:0 0 31%;width:31%;page-break-inside:avoid;margin-bottom:8px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cuadrante</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="cuadrante">Cuadrante</button>
+    <button class="tab-btn" data-tab="equipo">Equipo</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ TAB CUADRANTE ============ -->
+  <section id="tab-cuadrante">
+    <div class="toolbar">
+      <input type="text" id="date-label" placeholder="Semana… (ej: día 17 al 24)">
+      <button class="btn primary" id="btn-publish">Publicar</button>
+      <button class="btn" id="btn-png">Guardar PNG</button>
+      <button class="btn" id="btn-print">Imprimir</button>
+      <button class="btn" id="btn-qr">QR empleados</button>
+      <button class="btn danger" id="btn-reset">Reiniciar</button>
+    </div>
+
+    <div class="worker-strip" id="worker-strip"></div>
+    <p class="strip-hint">Toca un trabajador y luego un hueco para colocarlo. Toca un nombre ya colocado para quitarlo. En ordenador también puedes arrastrar.</p>
+
+    <div id="capture-area">
+      <div id="export-title"></div>
+      <div class="grid-scroller">
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB EQUIPO ============ -->
+  <section id="tab-equipo" class="hidden">
+    <div class="panel">
+      <h2>Añadir trabajador</h2>
+      <div class="add-form">
+        <input type="text" id="new-name" placeholder="Nombre" maxlength="30">
+        <input type="number" id="new-hours" placeholder="Turnos/sem" min="1" max="20">
+        <button class="btn primary" id="btn-add">Añadir</button>
+      </div>
+      <div class="worker-list" id="worker-list"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Publicación (GitHub)</h2>
+      <div class="add-form" style="flex-direction:column;align-items:stretch">
+        <input type="text" id="gh-user" placeholder="Usuario de GitHub" autocomplete="off">
+        <input type="text" id="gh-repo" placeholder="Nombre del repositorio" autocomplete="off">
+        <input type="password" id="gh-token" placeholder="Token (PAT con permiso Contents)" autocomplete="off">
+      </div>
+      <div class="setting-row" style="margin-top:8px">
+        <span class="note">Se configura una sola vez por dispositivo. Al pulsar "Publicar" en el cuadrante, se sube el archivo <strong>datos.json</strong> al repositorio y el QR permanente pasa a mostrar la versión nueva (tarda 1-2 min en refrescar). El token se guarda solo en este dispositivo y no se incluye en las copias de seguridad.</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Copia de seguridad</h2>
+      <div class="setting-row">
+        <button class="btn" id="btn-export">Exportar datos</button>
+        <button class="btn" id="btn-import">Importar datos</button>
+        <input type="file" id="import-file" accept=".json,application/json" style="display:none">
+        <span class="note">Exportar descarga un archivo con tus trabajadores y el cuadrante actual. Importar lo restaura desde ese archivo (sustituye lo que haya). Úsalo para pasar los datos a otro dispositivo o guardar una copia.</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Ajustes</h2>
+      <div class="setting-row">
+        <span class="note">Cada trabajador tiene un número de turnos semanales. Cada vez que lo colocas en un puesto (día o noche) consume 1 turno. Al agotarlos, su tarjeta se deshabilita.</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* =================== Datos =================== */
+const DAYS = [
+  {id:'lun',  label:'Lunes'},
+  {id:'mar',  label:'Martes'},
+  {id:'mie',  label:'Miércoles'},
+  {id:'jue',  label:'Jueves'},
+  {id:'vie',  label:'Viernes'},
+  {id:'vieN', label:'Viernes noche', night:true},
+  {id:'sab',  label:'Sábado'},
+  {id:'sabN', label:'Sábado noche', night:true},
+  {id:'dom',  label:'Domingo'},
+];
+const ROLES = [
+  {id:'cam', label:'Camareros', min:3, cls:'role-cam'},
+  {id:'par', label:'Parrilla',  min:1, cls:'role-par'},
+  {id:'coc', label:'Cocineros', min:2, cls:'role-coc'},
+];
+const ALL_ID = '__ALL__';
+const STORE_KEY = 'cuadrante-estado-v1';
+
+let state = {
+  workers: [],          // {id, name, shifts}  turnos semanales
+  cells: {},            // "dayId|roleId" -> [workerId | ALL_ID, ...]
+  dateLabel: '',
+};
+let selectedId = null;  // trabajador seleccionado (tap) o ALL_ID
+let saveTimer = null;
+
+/* Modo solo lectura:
+   - #v=…  → datos incrustados en el enlace (QR de una semana concreta)
+   - ?ver  → QR permanente: descarga datos.json publicado junto a la app */
+const VIEW_MODE = location.hash.startsWith('#v=') || location.search.includes('ver');
+const GH_KEY = 'cuadrante-github-v1';
+let ghConfig = { user:'', repo:'', token:'' };
+
+/* =================== Persistencia =================== */
+/* En Claude usa su almacenamiento; abierto como archivo/web usa el del navegador */
+const store = (typeof window.storage !== 'undefined' && window.storage) ? {
+  async get(k){ try{ const r = await window.storage.get(k); return r ? r.value : null; }catch(e){ return null; } },
+  async set(k,v){ await window.storage.set(k,v); },
+} : {
+  async get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  async set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ throw e; } },
+};
+
+async function loadState(){
+  try{
+    const v = await store.get(STORE_KEY);
+    if(v){
+      const s = JSON.parse(v);
+      state = Object.assign(state, s);
+      // Migración: trabajadores guardados con el sistema antiguo de horas
+      for(const w of state.workers){
+        if(w.shifts==null && w.hours!=null){ w.shifts = Math.max(1, Math.min(20, w.hours)); delete w.hours; }
+      }
+    }
+  }catch(e){ /* primera vez: no existe la clave */ }
+  try{
+    const g = await store.get(GH_KEY);
+    if(g) ghConfig = Object.assign(ghConfig, JSON.parse(g));
+  }catch(e){}
+  renderAll();
+}
+function saveGhConfig(){
+  store.set(GH_KEY, JSON.stringify(ghConfig)).catch(()=>toast('No se pudo guardar la configuración'));
+}
+function scheduleSave(){
+  if(VIEW_MODE) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{ await store.set(STORE_KEY, JSON.stringify(state)); }
+    catch(e){ toast('No se pudo guardar. Reintenta.'); }
+  }, 400);
+}
+
+/* =================== Utilidades =================== */
+function cellKey(d,r){ return d+'|'+r; }
+function cellList(d,r){
+  const k = cellKey(d,r);
+  if(!state.cells[k]) state.cells[k] = [];
+  return state.cells[k];
+}
+function usedShifts(workerId){
+  let n = 0;
+  for(const k in state.cells){
+    n += state.cells[k].filter(id=>id===workerId).length;
+  }
+  return n;
+}
+function isExhausted(w){
+  return usedShifts(w.id) >= w.shifts;
+}
+function workerById(id){ return state.workers.find(w=>w.id===id); }
+function dayHasAll(dayId){
+  return ROLES.some(r=>cellList(dayId, r.id).includes(ALL_ID));
+}
+function clearDay(dayId){
+  for(const r of ROLES) state.cells[cellKey(dayId, r.id)] = [];
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* =================== Render =================== */
+function renderAll(){
+  renderStrip();
+  renderGrid();
+  renderWorkerList();
+  document.getElementById('date-label').value = state.dateLabel;
+  document.getElementById('gh-user').value = ghConfig.user;
+  document.getElementById('gh-repo').value = ghConfig.repo;
+  document.getElementById('gh-token').value = ghConfig.token;
+}
+
+function renderStrip(){
+  const strip = document.getElementById('worker-strip');
+  strip.innerHTML = '';
+
+  // Tarjeta TODOS
+  const all = document.createElement('div');
+  all.className = 'worker-card all-card' + (selectedId===ALL_ID?' selected':'');
+  all.innerHTML = '<div class="w-name">TODOS</div><div class="w-hours">Sin límite</div>';
+  all.draggable = true;
+  all.addEventListener('click', ()=>toggleSelect(ALL_ID));
+  all.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', ALL_ID); });
+  strip.appendChild(all);
+
+  for(const w of state.workers){
+    const used = usedShifts(w.id);
+    const exhausted = isExhausted(w);
+    const card = document.createElement('div');
+    card.className = 'worker-card'
+      + (selectedId===w.id?' selected':'')
+      + (exhausted?' exhausted':'');
+    const pct = Math.min(100, Math.round(used / w.shifts * 100));
+    card.innerHTML =
+      '<div class="w-name">'+esc(w.name)+'</div>' +
+      '<div class="w-hours">'+used+' / '+w.shifts+' turnos</div>' +
+      '<div class="w-bar"><i style="width:'+pct+'%"></i></div>';
+    if(!exhausted){
+      card.draggable = true;
+      card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', w.id); });
+      card.addEventListener('click', ()=>toggleSelect(w.id));
+    }else{
+      card.addEventListener('click', ()=>toast(esc(w.name)+' ya no tiene turnos disponibles'));
+    }
+    strip.appendChild(card);
+  }
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for(const d of DAYS){
+    const col = document.createElement('div');
+    col.className = 'day-col' + (d.night?' night':'');
+    const name = document.createElement('div');
+    name.className = 'day-name';
+    name.textContent = d.label;
+    col.appendChild(name);
+
+    if(dayHasAll(d.id)){
+      const block = document.createElement('div');
+      block.className = 'all-day';
+      const chip = document.createElement('div');
+      chip.className = 'chip all-chip all-day-chip';
+      chip.innerHTML = '<span>TODOS</span><span class="x">✕</span>';
+      if(!VIEW_MODE){
+        chip.addEventListener('click', ev=>{
+          ev.stopPropagation();
+          clearDay(d.id);
+          renderStrip(); renderGrid(); scheduleSave();
+        });
+      }
+      block.appendChild(chip);
+      const note = document.createElement('div');
+      note.className = 'all-day-note';
+      note.textContent = 'Día completo';
+      block.appendChild(note);
+      if(!VIEW_MODE){
+        // Tap/drop sobre el bloque avisa de que hay que quitar TODOS primero
+        block.addEventListener('click', ()=>{
+          if(selectedId && selectedId!==ALL_ID) toast('Ese día está cubierto por TODOS. Quítalo para asignar por puestos.');
+        });
+        block.addEventListener('dragover', e=>e.preventDefault());
+        block.addEventListener('drop', e=>{
+          e.preventDefault();
+          toast('Ese día está cubierto por TODOS. Quítalo para asignar por puestos.');
+        });
+      }
+      col.appendChild(block);
+      grid.appendChild(col);
+      continue;
+    }
+
+    for(const r of ROLES){
+      const block = document.createElement('div');
+      block.className = 'role-block ' + r.cls;
+      const list = cellList(d.id, r.id);
+      const ok = list.length >= r.min;
+      const head = document.createElement('div');
+      head.className = 'role-head';
+      head.innerHTML = '<span>'+r.label+'</span>' +
+        '<span class="count'+(ok?' ok':'')+'">'+list.length+'/'+r.min+'</span>';
+      block.appendChild(head);
+
+      const zone = document.createElement('div');
+      zone.className = 'drop-zone' + (selectedId?' armed':'');
+      zone.dataset.day = d.id;
+      zone.dataset.role = r.id;
+
+      for(let i=0;i<list.length;i++){
+        const id = list[i];
+        const chip = document.createElement('div');
+        const isAll = id===ALL_ID;
+        const w = isAll ? null : workerById(id);
+        chip.className = 'chip' + (isAll?' all-chip':'');
+        chip.innerHTML = '<span>'+(isAll?'TODOS':esc(w? w.name : '?'))+'</span><span class="x">✕</span>';
+        const idx = i;
+        if(!VIEW_MODE){
+          chip.addEventListener('click', ev=>{
+            ev.stopPropagation();
+            removeAssignment(d.id, r.id, idx);
+          });
+        }
+        zone.appendChild(chip);
+      }
+
+      if(!VIEW_MODE){
+        // Tap para colocar seleccionado
+        zone.addEventListener('click', ()=>{
+          if(selectedId) assign(d.id, r.id, selectedId);
+        });
+        // Drag & drop nativo (escritorio)
+        zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+        zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
+        zone.addEventListener('drop', e=>{
+          e.preventDefault();
+          zone.classList.remove('drag-over');
+          const id = e.dataTransfer.getData('text/plain');
+          if(id) assign(d.id, r.id, id);
+        });
+      }
+
+      block.appendChild(zone);
+      col.appendChild(block);
+    }
+    grid.appendChild(col);
+  }
+}
+
+function renderWorkerList(){
+  const list = document.getElementById('worker-list');
+  list.innerHTML = '';
+  if(state.workers.length===0){
+    list.innerHTML = '<p class="empty-note">Todavía no hay trabajadores. Añade el primero arriba.</p>';
+    return;
+  }
+  for(const w of state.workers){
+    const row = document.createElement('div');
+    row.className = 'worker-row';
+
+    const nameIn = document.createElement('input');
+    nameIn.type='text'; nameIn.value=w.name; nameIn.maxLength=30;
+    nameIn.addEventListener('change', ()=>{
+      w.name = nameIn.value.trim() || w.name;
+      nameIn.value = w.name;
+      renderStrip(); renderGrid(); scheduleSave();
+    });
+
+    const hoursIn = document.createElement('input');
+    hoursIn.type='number'; hoursIn.min=1; hoursIn.max=20; hoursIn.value=w.shifts;
+    hoursIn.addEventListener('change', ()=>{
+      const v = parseInt(hoursIn.value,10);
+      if(v>=1 && v<=20){ w.shifts=v; renderStrip(); scheduleSave(); }
+      else hoursIn.value = w.shifts;
+    });
+
+    const lbl = document.createElement('span');
+    lbl.className='h-label'; lbl.textContent='turnos/sem';
+
+    const del = document.createElement('button');
+    del.className='del'; del.textContent='✕'; del.title='Eliminar';
+    del.addEventListener('click', ()=>{
+      if(!del._armed){
+        del._armed = setTimeout(()=>{ del._armed=null; del.textContent='✕'; }, 3000);
+        del.textContent='¿Borrar?';
+        return;
+      }
+      clearTimeout(del._armed);
+      state.workers = state.workers.filter(x=>x.id!==w.id);
+      for(const k in state.cells){
+        state.cells[k] = state.cells[k].filter(id=>id!==w.id);
+      }
+      if(selectedId===w.id) selectedId=null;
+      renderAll(); scheduleSave();
+      toast(w.name+' eliminado');
+    });
+
+    row.append(nameIn, hoursIn, lbl, del);
+    list.appendChild(row);
+  }
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =================== Acciones =================== */
+function toggleSelect(id){
+  selectedId = (selectedId===id) ? null : id;
+  renderStrip(); renderGrid();
+}
+
+function assign(dayId, roleId, id){
+  if(dayHasAll(dayId)){
+    toast('Ese día está cubierto por TODOS. Quítalo para asignar por puestos.');
+    return;
+  }
+  if(id===ALL_ID){
+    // TODOS cubre el día entero: se vacían los puestos y solo queda TODOS
+    clearDay(dayId);
+    cellList(dayId, ROLES[0].id).push(ALL_ID);
+    renderStrip(); renderGrid(); scheduleSave();
+    return;
+  }
+  const list = cellList(dayId, roleId);
+  const w = workerById(id);
+  if(!w) return;
+  // ¿Ya está ese día en algún puesto?
+  for(const r of ROLES){
+    if(cellList(dayId, r.id).includes(id)){
+      const day = DAYS.find(x=>x.id===dayId);
+      toast(w.name+' ya está el '+day.label.toLowerCase()+' en '+r.label.toLowerCase());
+      return;
+    }
+  }
+  if(isExhausted(w)){ toast(w.name+' ya no tiene turnos disponibles'); return; }
+  list.push(id);
+  // Si al trabajador se le acaban los turnos, deseleccionar
+  if(isExhausted(w)) selectedId = null;
+  renderStrip(); renderGrid(); scheduleSave();
+}
+
+function removeAssignment(dayId, roleId, index){
+  const list = cellList(dayId, roleId);
+  list.splice(index,1);
+  renderStrip(); renderGrid(); scheduleSave();
+}
+
+/* =================== Toolbar =================== */
+document.getElementById('date-label').addEventListener('input', e=>{
+  state.dateLabel = e.target.value;
+  scheduleSave();
+});
+
+const resetBtn = document.getElementById('btn-reset');
+let resetArmed = null;
+resetBtn.addEventListener('click', ()=>{
+  if(!resetArmed){
+    resetArmed = setTimeout(()=>{ resetArmed=null; resetBtn.textContent='Reiniciar'; }, 3000);
+    resetBtn.textContent = '¿Seguro? Toca otra vez';
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null;
+  resetBtn.textContent = 'Reiniciar';
+  state.cells = {};
+  state.dateLabel = '';
+  selectedId = null;
+  renderAll(); scheduleSave();
+  toast('Plantilla reiniciada. Turnos restaurados.');
+});
+
+document.getElementById('btn-print').addEventListener('click', ()=>{
+  document.getElementById('export-title').textContent =
+    'Cuadrante ' + (state.dateLabel || '');
+  window.print();
+});
+
+document.getElementById('btn-png').addEventListener('click', async ()=>{
+  const title = document.getElementById('export-title');
+  title.textContent = 'Cuadrante ' + (state.dateLabel || '');
+  title.style.display = 'block';
+  const area = document.getElementById('capture-area');
+  const scroller = area.querySelector('.grid-scroller');
+  const prevOverflow = scroller.style.overflow;
+  scroller.style.overflow = 'visible';
+  try{
+    const canvas = await html2canvas(area, {
+      backgroundColor:'#ffffff',
+      scale:2,
+      windowWidth: area.scrollWidth + 40,
+      width: Math.max(area.scrollWidth, document.getElementById('grid').scrollWidth) + 20,
+    });
+    const a = document.createElement('a');
+    a.download = 'cuadrante' + (state.dateLabel? '-'+state.dateLabel.replace(/\s+/g,'_') : '') + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    toast('PNG generado');
+  }catch(e){
+    toast('No se pudo generar el PNG');
+  }finally{
+    title.style.display = 'none';
+    scroller.style.overflow = prevOverflow;
+  }
+});
+
+/* =================== Equipo =================== */
+document.getElementById('btn-add').addEventListener('click', addWorker);
+document.getElementById('new-hours').addEventListener('keydown', e=>{ if(e.key==='Enter') addWorker(); });
+document.getElementById('new-name').addEventListener('keydown', e=>{ if(e.key==='Enter') addWorker(); });
+
+function addWorker(){
+  const nameIn = document.getElementById('new-name');
+  const hoursIn = document.getElementById('new-hours');
+  const name = nameIn.value.trim();
+  const shifts = parseInt(hoursIn.value,10);
+  if(!name){ toast('Escribe un nombre'); return; }
+  if(!(shifts>=1 && shifts<=20)){ toast('Turnos entre 1 y 20'); return; }
+  state.workers.push({ id:'w'+Date.now()+Math.floor(Math.random()*1000), name, shifts });
+  nameIn.value=''; hoursIn.value='';
+  nameIn.focus();
+  renderAll(); scheduleSave();
+}
+
+/* =================== Tabs =================== */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-cuadrante').classList.toggle('hidden', btn.dataset.tab!=='cuadrante');
+    document.getElementById('tab-equipo').classList.toggle('hidden', btn.dataset.tab!=='equipo');
+  });
+});
+
+/* =================== Copia de seguridad =================== */
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cuadrante-datos.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Datos exportados');
+});
+
+document.getElementById('btn-import').addEventListener('click', ()=>{
+  document.getElementById('import-file').click();
+});
+document.getElementById('import-file').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const s = JSON.parse(reader.result);
+      if(!Array.isArray(s.workers) || typeof s.cells !== 'object'){
+        toast('El archivo no tiene el formato esperado'); return;
+      }
+      state = { workers: s.workers, cells: s.cells || {}, dateLabel: s.dateLabel || '' };
+      selectedId = null;
+      renderAll(); scheduleSave();
+      toast('Datos importados');
+    }catch(err){ toast('No se pudo leer el archivo'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+/* =================== QR y publicación =================== */
+function buildPayload(){
+  // Payload mínimo: fechas, nombres y asignaciones, con IDs acortados a índices
+  const idMap = {};
+  state.workers.forEach((w,i)=>{ idMap[w.id] = String(i); });
+  idMap[ALL_ID] = 'A';
+  const cells = {};
+  for(const k in state.cells){
+    if(state.cells[k].length) cells[k] = state.cells[k].map(id=>idMap[id]).filter(x=>x!=null);
+  }
+  return { d: state.dateLabel, w: state.workers.map(w=>w.name), c: cells };
+}
+function ghReady(){ return ghConfig.user && ghConfig.repo && ghConfig.token; }
+
+document.getElementById('btn-qr').addEventListener('click', ()=>{
+  const base = location.origin + location.pathname;
+  const shareable = location.protocol === 'http:' || location.protocol === 'https:';
+  let url, title, extra = '';
+  if(ghReady()){
+    url = base + '?ver';
+    title = 'QR permanente para empleados';
+    extra = '<div class="qr-warn" style="color:var(--ink-soft)">Este QR no cambia: siempre muestra la última versión publicada. Pulsa "Publicar" tras cada cambio.</div>';
+  }else{
+    const packed = LZString.compressToEncodedURIComponent(JSON.stringify(buildPayload()));
+    url = base + '#v=' + packed;
+    title = 'Vista para empleados (esta semana)';
+  }
+
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML =
+    '<div class="modal">' +
+      '<h3>'+title+'</h3>' +
+      '<div id="qr-box"></div>' +
+      extra +
+      (shareable ? '' : '<div class="qr-warn">Esta copia no está publicada en una web, así que el QR no funcionará en otros móviles. Sube el archivo a una web (ej. GitHub Pages) y genera el QR desde ahí.</div>') +
+      '<div class="qr-link">'+esc(url)+'</div>' +
+      '<div class="row">' +
+        '<button class="btn primary" id="qr-copy">Copiar enlace</button>' +
+        '<button class="btn" id="qr-close">Cerrar</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(bg);
+  new QRCode(document.getElementById('qr-box'), { text:url, width:220, height:220, correctLevel: QRCode.CorrectLevel.L });
+  document.getElementById('qr-close').addEventListener('click', ()=>bg.remove());
+  bg.addEventListener('click', e=>{ if(e.target===bg) bg.remove(); });
+  document.getElementById('qr-copy').addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(url); toast('Enlace copiado'); }
+    catch(e){ toast('Copia el enlace manualmente del recuadro'); }
+  });
+});
+
+/* ---- Config GitHub ---- */
+for(const [inputId, key] of [['gh-user','user'],['gh-repo','repo'],['gh-token','token']]){
+  document.getElementById(inputId).addEventListener('change', e=>{
+    ghConfig[key] = e.target.value.trim();
+    saveGhConfig();
+  });
+}
+
+/* ---- Publicar datos.json en el repo ---- */
+const publishBtn = document.getElementById('btn-publish');
+publishBtn.addEventListener('click', async ()=>{
+  if(!ghReady()){
+    toast('Configura GitHub en la pestaña Equipo (usuario, repo y token)');
+    return;
+  }
+  publishBtn.disabled = true;
+  publishBtn.textContent = 'Publicando…';
+  try{
+    const api = 'https://api.github.com/repos/'+ghConfig.user+'/'+ghConfig.repo+'/contents/datos.json';
+    const headers = {
+      'Authorization': 'Bearer '+ghConfig.token,
+      'Accept': 'application/vnd.github+json',
+    };
+    // sha actual si el archivo ya existe
+    let sha = null;
+    const head = await fetch(api, {headers});
+    if(head.status === 200){ sha = (await head.json()).sha; }
+    else if(head.status === 401 || head.status === 403){ throw new Error('token'); }
+    else if(head.status !== 404){ throw new Error('repo'); }
+
+    const json = JSON.stringify(buildPayload());
+    const body = {
+      message: 'Cuadrante ' + (state.dateLabel || new Date().toISOString().slice(0,10)),
+      content: btoa(unescape(encodeURIComponent(json))),
+    };
+    if(sha) body.sha = sha;
+    const put = await fetch(api, {method:'PUT', headers, body: JSON.stringify(body)});
+    if(!put.ok) throw new Error(put.status===401||put.status===403 ? 'token' : 'subida');
+    toast('Publicado. El QR mostrará la versión nueva en 1-2 minutos.');
+  }catch(e){
+    if(e.message==='token') toast('Token inválido o sin permisos sobre el repositorio');
+    else if(e.message==='repo') toast('No se encuentra el repositorio. Revisa usuario y nombre.');
+    else toast('No se pudo publicar. Revisa la conexión y la configuración.');
+  }finally{
+    publishBtn.disabled = false;
+    publishBtn.textContent = 'Publicar';
+  }
+});
+
+/* =================== Arranque =================== */
+if(VIEW_MODE){
+  document.body.classList.add('view-mode');
+  const applyPayload = (payload)=>{
+    state.dateLabel = payload.d || '';
+    state.workers = (payload.w || []).map((name,i)=>({id:String(i), name, shifts:99}));
+    // Los índices 'A' del payload son la tarjeta TODOS
+    state.cells = {};
+    for(const k in (payload.c || {})){
+      state.cells[k] = payload.c[k].map(x => x==='A' ? ALL_ID : x);
+    }
+    document.getElementById('export-title').textContent = 'Cuadrante ' + state.dateLabel;
+    renderGrid();
+  };
+  const fail = ()=>{
+    document.getElementById('export-title').textContent = 'No se pudo cargar el cuadrante. Vuelve a intentarlo en un momento.';
+  };
+  if(location.hash.startsWith('#v=')){
+    try{
+      applyPayload(JSON.parse(LZString.decompressFromEncodedURIComponent(location.hash.slice(3))));
+    }catch(e){ fail(); }
+  }else{
+    // QR permanente: datos.json publicado junto a la app (cache-bust para ver lo último)
+    document.getElementById('export-title').textContent = 'Cargando cuadrante…';
+    fetch('datos.json?t='+Date.now(), {cache:'no-store'})
+      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+      .then(applyPayload)
+      .catch(fail);
+  }
+}else{
+  loadState();
+}
+</script>
+</body>
+</html>
