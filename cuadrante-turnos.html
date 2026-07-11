@@ -64,12 +64,24 @@
   .toolbar{
     display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;
   }
-  .toolbar input[type=text]{
-    flex:1;min-width:150px;
-    border:1px solid var(--line);border-radius:var(--radius);
-    padding:9px 12px;font:inherit;background:var(--card);
+  .toolbar .week-picker{
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:6px 10px;font-size:.88rem;font-weight:600;
   }
-  .toolbar input[type=text]::placeholder{color:#a0a8b8}
+  .week-picker select{
+    border:1px solid var(--line);border-radius:7px;padding:5px 6px;
+    font:inherit;background:#fff;
+  }
+
+  /* Tarjeta con turnos completos: atenuada pero usable */
+  .worker-card.full{opacity:.55}
+  /* Tarjeta con turnos de más: amarillo */
+  .worker-card.over{
+    border-color:#d9a400;background:#fff7dc;opacity:1;
+  }
+  .worker-card.over .w-hours{color:#8a6a00;font-weight:700}
+  .worker-card.over .w-bar i{background:#d9a400}
 
   /* ---------- Tira de trabajadores ---------- */
   .worker-strip{
@@ -238,6 +250,7 @@
   <h1>Cuadrante</h1>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="cuadrante">Cuadrante</button>
+    <button class="tab-btn" data-tab="programar">Programar</button>
     <button class="tab-btn" data-tab="equipo">Equipo</button>
   </nav>
 </header>
@@ -246,8 +259,16 @@
   <!-- ============ TAB CUADRANTE ============ -->
   <section id="tab-cuadrante">
     <div class="toolbar">
-      <input type="text" id="date-label" placeholder="Semana… (ej: día 17 al 24)">
+      <div class="week-picker">
+        <span>Semana del</span>
+        <select id="week-from"></select>
+        <span>al</span>
+        <select id="week-to"></select>
+        <span>de</span>
+        <select id="week-month"></select>
+      </div>
       <button class="btn primary" id="btn-publish">Publicar</button>
+      <button class="btn" id="btn-schedule">Programar semana</button>
       <button class="btn" id="btn-png">Guardar PNG</button>
       <button class="btn" id="btn-print">Imprimir</button>
       <button class="btn" id="btn-qr">QR empleados</button>
@@ -262,6 +283,17 @@
       <div class="grid-scroller">
         <div class="grid" id="grid"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB PROGRAMAR ============ -->
+  <section id="tab-programar" class="hidden">
+    <div class="panel">
+      <h2>Semanas programadas</h2>
+      <div class="setting-row" style="margin-bottom:10px">
+        <span class="note">Estas semanas se publican solas, <strong>una cada domingo a las 18:00 (hora canaria)</strong>, en el orden de la lista. Para añadir una: monta el cuadrante como siempre y pulsa <strong>"Programar semana"</strong> en la pestaña Cuadrante. Requiere tener la automatización instalada en el repositorio (una sola vez).</span>
+      </div>
+      <div class="worker-list" id="queue-list"><p class="empty-note">Cargando…</p></div>
     </div>
   </section>
 
@@ -427,7 +459,9 @@ function renderAll(){
   renderStrip();
   renderGrid();
   renderWorkerList();
-  document.getElementById('date-label').value = state.dateLabel;
+  document.getElementById('week-from').value = state.weekFrom || '';
+  document.getElementById('week-to').value = state.weekTo || '';
+  document.getElementById('week-month').value = state.weekMonth || '';
   document.getElementById('gh-user').value = ghConfig.user;
   document.getElementById('gh-repo').value = ghConfig.repo;
   document.getElementById('gh-token').value = ghConfig.token;
@@ -448,23 +482,18 @@ function renderStrip(){
 
   for(const w of state.workers){
     const used = usedShifts(w.id);
-    const exhausted = isExhausted(w);
     const card = document.createElement('div');
     card.className = 'worker-card'
       + (selectedId===w.id?' selected':'')
-      + (exhausted?' exhausted':'');
+      + (used > w.shifts ? ' over' : used === w.shifts ? ' full' : '');
     const pct = Math.min(100, Math.round(used / w.shifts * 100));
     card.innerHTML =
       '<div class="w-name">'+esc(w.name)+'</div>' +
-      '<div class="w-hours">'+used+' / '+w.shifts+' turnos</div>' +
+      '<div class="w-hours">'+used+' / '+w.shifts+' turnos'+(used>w.shifts?' ⚠':'')+'</div>' +
       '<div class="w-bar"><i style="width:'+pct+'%"></i></div>';
-    if(!exhausted){
-      card.draggable = true;
-      card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', w.id); });
-      card.addEventListener('click', ()=>toggleSelect(w.id));
-    }else{
-      card.addEventListener('click', ()=>toast(esc(w.name)+' ya no tiene turnos disponibles'));
-    }
+    card.draggable = true;
+    card.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', w.id); });
+    card.addEventListener('click', ()=>toggleSelect(w.id));
     strip.appendChild(card);
   }
 }
@@ -541,7 +570,9 @@ function renderGrid(){
         if(!VIEW_MODE){
           chip.addEventListener('click', ev=>{
             ev.stopPropagation();
-            removeAssignment(d.id, r.id, idx);
+            // Si hay alguien seleccionado, el toque añade al puesto; si no, quita este chip
+            if(selectedId) assign(d.id, r.id, selectedId);
+            else removeAssignment(d.id, r.id, idx);
           });
         }
         zone.appendChild(chip);
@@ -656,10 +687,8 @@ function assign(dayId, roleId, id){
       return;
     }
   }
-  if(isExhausted(w)){ toast(w.name+' ya no tiene turnos disponibles'); return; }
   list.push(id);
-  // Si al trabajador se le acaban los turnos, deseleccionar
-  if(isExhausted(w)) selectedId = null;
+  if(usedShifts(w.id) > w.shifts) toast(w.name+' tiene turnos de más esta semana');
   renderStrip(); renderGrid(); scheduleSave();
 }
 
@@ -670,10 +699,27 @@ function removeAssignment(dayId, roleId, index){
 }
 
 /* =================== Toolbar =================== */
-document.getElementById('date-label').addEventListener('input', e=>{
-  state.dateLabel = e.target.value;
+/* =================== Selector de semana =================== */
+const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+(function fillWeekSelects(){
+  for(const id of ['week-from','week-to']){
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">–</option>' + Array.from({length:31},(_,i)=>'<option>'+(i+1)+'</option>').join('');
+  }
+  const m = document.getElementById('week-month');
+  m.innerHTML = '<option value="">–</option>' + MONTHS.map(x=>'<option>'+x+'</option>').join('');
+})();
+function updateDateLabel(){
+  const f = document.getElementById('week-from').value;
+  const t = document.getElementById('week-to').value;
+  const m = document.getElementById('week-month').value;
+  state.weekFrom = f; state.weekTo = t; state.weekMonth = m;
+  state.dateLabel = (f && t && m) ? 'del '+f+' al '+t+' de '+m : '';
   scheduleSave();
-});
+}
+for(const id of ['week-from','week-to','week-month']){
+  document.getElementById(id).addEventListener('change', updateDateLabel);
+}
 
 const resetBtn = document.getElementById('btn-reset');
 let resetArmed = null;
@@ -687,6 +733,7 @@ resetBtn.addEventListener('click', ()=>{
   resetBtn.textContent = 'Reiniciar';
   state.cells = {};
   state.dateLabel = '';
+  state.weekFrom = ''; state.weekTo = ''; state.weekMonth = '';
   selectedId = null;
   renderAll(); scheduleSave();
   toast('Plantilla reiniciada. Turnos restaurados.');
@@ -749,8 +796,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('tab-cuadrante').classList.toggle('hidden', btn.dataset.tab!=='cuadrante');
-    document.getElementById('tab-equipo').classList.toggle('hidden', btn.dataset.tab!=='equipo');
+    for(const t of ['cuadrante','programar','equipo']){
+      document.getElementById('tab-'+t).classList.toggle('hidden', btn.dataset.tab!==t);
+    }
+    if(btn.dataset.tab==='programar') renderQueue();
   });
 });
 
@@ -853,6 +902,36 @@ for(const [inputId, key] of [['gh-user','user'],['gh-repo','repo'],['gh-token','
   });
 }
 
+/* ---- API GitHub genérica ---- */
+function ghHeaders(){
+  return { 'Authorization': 'Bearer '+ghConfig.token, 'Accept': 'application/vnd.github+json' };
+}
+function ghUrl(path){
+  return 'https://api.github.com/repos/'+ghConfig.user+'/'+ghConfig.repo+'/contents/'+path;
+}
+// Devuelve {sha, text} o null si no existe. Lanza 'token'/'repo' en errores.
+async function ghGetFile(path){
+  const r = await fetch(ghUrl(path), {headers: ghHeaders()});
+  if(r.status === 404) return null;
+  if(r.status === 401 || r.status === 403) throw new Error('token');
+  if(!r.ok) throw new Error('repo');
+  const j = await r.json();
+  const text = decodeURIComponent(escape(atob(j.content.replace(/\n/g,''))));
+  return { sha: j.sha, text };
+}
+async function ghPutFile(path, text, message, sha){
+  const body = { message, content: btoa(unescape(encodeURIComponent(text))) };
+  if(sha) body.sha = sha;
+  const r = await fetch(ghUrl(path), {method:'PUT', headers: ghHeaders(), body: JSON.stringify(body)});
+  if(r.status === 401 || r.status === 403) throw new Error('token');
+  if(!r.ok) throw new Error('subida');
+}
+function ghErrorToast(e){
+  if(e.message==='token') toast('Token inválido o sin permisos sobre el repositorio');
+  else if(e.message==='repo') toast('No se encuentra el repositorio. Revisa usuario y nombre.');
+  else toast('Error de conexión con GitHub. Reintenta.');
+}
+
 /* ---- Publicar datos.json en el repo ---- */
 const publishBtn = document.getElementById('btn-publish');
 publishBtn.addEventListener('click', async ()=>{
@@ -863,36 +942,92 @@ publishBtn.addEventListener('click', async ()=>{
   publishBtn.disabled = true;
   publishBtn.textContent = 'Publicando…';
   try{
-    const api = 'https://api.github.com/repos/'+ghConfig.user+'/'+ghConfig.repo+'/contents/datos.json';
-    const headers = {
-      'Authorization': 'Bearer '+ghConfig.token,
-      'Accept': 'application/vnd.github+json',
-    };
-    // sha actual si el archivo ya existe
-    let sha = null;
-    const head = await fetch(api, {headers});
-    if(head.status === 200){ sha = (await head.json()).sha; }
-    else if(head.status === 401 || head.status === 403){ throw new Error('token'); }
-    else if(head.status !== 404){ throw new Error('repo'); }
-
-    const json = JSON.stringify(buildPayload());
-    const body = {
-      message: 'Cuadrante ' + (state.dateLabel || new Date().toISOString().slice(0,10)),
-      content: btoa(unescape(encodeURIComponent(json))),
-    };
-    if(sha) body.sha = sha;
-    const put = await fetch(api, {method:'PUT', headers, body: JSON.stringify(body)});
-    if(!put.ok) throw new Error(put.status===401||put.status===403 ? 'token' : 'subida');
+    const existing = await ghGetFile('datos.json');
+    await ghPutFile('datos.json', JSON.stringify(buildPayload()),
+      'Cuadrante ' + (state.dateLabel || new Date().toISOString().slice(0,10)),
+      existing ? existing.sha : null);
     toast('Publicado. El QR mostrará la versión nueva en 1-2 minutos.');
-  }catch(e){
-    if(e.message==='token') toast('Token inválido o sin permisos sobre el repositorio');
-    else if(e.message==='repo') toast('No se encuentra el repositorio. Revisa usuario y nombre.');
-    else toast('No se pudo publicar. Revisa la conexión y la configuración.');
-  }finally{
+  }catch(e){ ghErrorToast(e); }
+  finally{
     publishBtn.disabled = false;
     publishBtn.textContent = 'Publicar';
   }
 });
+
+/* ---- Semanas programadas ---- */
+const QUEUE_FILE = 'programadas.json';
+const scheduleBtn = document.getElementById('btn-schedule');
+scheduleBtn.addEventListener('click', async ()=>{
+  if(!ghReady()){
+    toast('Configura GitHub en la pestaña Equipo (usuario, repo y token)');
+    return;
+  }
+  if(!state.dateLabel){
+    toast('Pon primero la semana (del X al Y de mes) para identificarla en la lista');
+    return;
+  }
+  scheduleBtn.disabled = true;
+  scheduleBtn.textContent = 'Programando…';
+  try{
+    const f = await ghGetFile(QUEUE_FILE);
+    const list = f ? JSON.parse(f.text) : [];
+    list.push(buildPayload());
+    await ghPutFile(QUEUE_FILE, JSON.stringify(list), 'Programar cuadrante '+state.dateLabel, f ? f.sha : null);
+    toast('Semana programada (posición '+list.length+' en la cola)');
+  }catch(e){ ghErrorToast(e); }
+  finally{
+    scheduleBtn.disabled = false;
+    scheduleBtn.textContent = 'Programar semana';
+  }
+});
+
+async function renderQueue(){
+  const box = document.getElementById('queue-list');
+  if(!ghReady()){
+    box.innerHTML = '<p class="empty-note">Configura GitHub en la pestaña Equipo para usar la programación.</p>';
+    return;
+  }
+  box.innerHTML = '<p class="empty-note">Cargando…</p>';
+  let f, list;
+  try{
+    f = await ghGetFile(QUEUE_FILE);
+    list = f ? JSON.parse(f.text) : [];
+  }catch(e){ box.innerHTML = '<p class="empty-note">No se pudo cargar la lista. Revisa la conexión y la configuración.</p>'; return; }
+  if(list.length===0){
+    box.innerHTML = '<p class="empty-note">No hay semanas programadas. Monta un cuadrante y pulsa "Programar semana".</p>';
+    return;
+  }
+  box.innerHTML = '';
+  list.forEach((item, i)=>{
+    const row = document.createElement('div');
+    row.className = 'worker-row';
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    label.innerHTML = '<strong>'+(i+1)+'.</strong> Cuadrante '+esc(item.d || '(sin fechas)')+
+      (i===0 ? ' <span style="font-size:.75rem;color:var(--ok)">← próxima (este domingo 18:00)</span>' : '');
+    const del = document.createElement('button');
+    del.className = 'del'; del.textContent = '✕'; del.title = 'Quitar de la cola';
+    del.addEventListener('click', async ()=>{
+      if(!del._armed){
+        del._armed = setTimeout(()=>{ del._armed=null; del.textContent='✕'; }, 3000);
+        del.textContent = '¿Quitar?';
+        return;
+      }
+      clearTimeout(del._armed);
+      try{
+        // Releer para no pisar cambios y borrar por posición
+        const cur = await ghGetFile(QUEUE_FILE);
+        const curList = cur ? JSON.parse(cur.text) : [];
+        curList.splice(i,1);
+        await ghPutFile(QUEUE_FILE, JSON.stringify(curList), 'Quitar semana programada', cur ? cur.sha : null);
+        toast('Semana quitada de la cola');
+        renderQueue();
+      }catch(e){ ghErrorToast(e); }
+    });
+    row.append(label, del);
+    box.appendChild(row);
+  });
+}
 
 /* =================== Arranque =================== */
 if(VIEW_MODE){
