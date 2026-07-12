@@ -214,6 +214,25 @@
   body.view-mode .chip{cursor:default}
   body.view-mode .chip .x{display:none}
 
+  /* ---------- Modo edición de semana programada ---------- */
+  #edit-banner{
+    display:none;
+    background:#fff7dc;border:2px solid #d9a400;border-radius:var(--radius);
+    padding:10px 12px;margin-bottom:10px;
+    align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  body.edit-mode #edit-banner{display:flex}
+  #edit-banner .eb-text{flex:1;font-size:.88rem;font-weight:600;min-width:180px}
+  body.edit-mode #btn-publish,
+  body.edit-mode #btn-schedule,
+  body.edit-mode #btn-png,
+  body.edit-mode #btn-print,
+  body.edit-mode #btn-qr,
+  body.edit-mode #btn-reset{display:none}
+
+  .queue-actions{display:flex;gap:6px;align-items:center}
+  .queue-date{display:block;font-size:.75rem;color:var(--ink-soft);font-weight:400;margin-top:2px}
+
   /* ---------- Modal QR ---------- */
   .modal-bg{
     position:fixed;inset:0;background:rgba(24,33,53,.55);z-index:90;
@@ -258,6 +277,11 @@
 <main>
   <!-- ============ TAB CUADRANTE ============ -->
   <section id="tab-cuadrante">
+    <div id="edit-banner">
+      <span class="eb-text" id="edit-banner-text">Editando cuadrante programado</span>
+      <button class="btn primary" id="btn-edit-save">Guardar</button>
+      <button class="btn" id="btn-edit-cancel">Cancelar</button>
+    </div>
     <div class="toolbar">
       <div class="week-picker">
         <span>Semana del</span>
@@ -370,6 +394,7 @@ let state = {
 };
 let selectedId = null;  // trabajador seleccionado (tap) o ALL_ID
 let saveTimer = null;
+let editMode = null;    // {index} cuando se edita una semana programada
 
 /* Modo solo lectura:
    - #v=…  → datos incrustados en el enlace (QR de una semana concreta)
@@ -410,7 +435,7 @@ function saveGhConfig(){
   store.set(GH_KEY, JSON.stringify(ghConfig)).catch(()=>toast('No se pudo guardar la configuración'));
 }
 function scheduleSave(){
-  if(VIEW_MODE) return;
+  if(VIEW_MODE || editMode) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     try{ await store.set(STORE_KEY, JSON.stringify(state)); }
@@ -792,14 +817,17 @@ function addWorker(){
 }
 
 /* =================== Tabs =================== */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  for(const t of ['cuadrante','programar','equipo']){
+    document.getElementById('tab-'+t).classList.toggle('hidden', name!==t);
+  }
+  if(name==='programar') renderQueue();
+}
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    for(const t of ['cuadrante','programar','equipo']){
-      document.getElementById('tab-'+t).classList.toggle('hidden', btn.dataset.tab!==t);
-    }
-    if(btn.dataset.tab==='programar') renderQueue();
+    if(editMode){ toast('Guarda o cancela la edición primero'); return; }
+    switchTab(btn.dataset.tab);
   });
 });
 
@@ -981,6 +1009,18 @@ scheduleBtn.addEventListener('click', async ()=>{
   }
 });
 
+/* Fecha (hora canaria) en la que se publicará el elemento i de la cola */
+function canaryNow(){
+  return new Date(new Date().toLocaleString('en-US', {timeZone:'Atlantic/Canary'}));
+}
+function publishDateFor(i){
+  const d = canaryNow();
+  let add = (7 - d.getDay()) % 7;             // días hasta el próximo domingo
+  if(add===0 && d.getHours()>=18) add = 7;    // hoy es domingo pero ya pasaron las 18h
+  d.setDate(d.getDate() + add + i*7);
+  return 'domingo ' + d.getDate() + ' de ' + MONTHS[d.getMonth()];
+}
+
 async function renderQueue(){
   const box = document.getElementById('queue-list');
   if(!ghReady()){
@@ -1003,8 +1043,13 @@ async function renderQueue(){
     row.className = 'worker-row';
     const label = document.createElement('span');
     label.style.flex = '1';
-    label.innerHTML = '<strong>'+(i+1)+'.</strong> Cuadrante '+esc(item.d || '(sin fechas)')+
-      (i===0 ? ' <span style="font-size:.75rem;color:var(--ok)">← próxima (este domingo 18:00)</span>' : '');
+    label.innerHTML = '<strong>'+(i+1)+'.</strong> Cuadrante '+esc(item.d || '(sin fechas)') +
+      '<span class="queue-date">Se publicará el '+publishDateFor(i)+(i===0?' (próxima)':'')+'</span>';
+    const actions = document.createElement('div');
+    actions.className = 'queue-actions';
+    const edit = document.createElement('button');
+    edit.className = 'btn'; edit.textContent = 'Editar';
+    edit.addEventListener('click', ()=>openEditor(i, item));
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '✕'; del.title = 'Quitar de la cola';
     del.addEventListener('click', async ()=>{
@@ -1024,10 +1069,85 @@ async function renderQueue(){
         renderQueue();
       }catch(e){ ghErrorToast(e); }
     });
-    row.append(label, del);
+    actions.append(edit, del);
+    row.append(label, actions);
     box.appendChild(row);
   });
 }
+
+/* =================== Editor de semanas programadas =================== */
+let editBackup = null;
+
+function payloadToEditingState(p){
+  // Reconstruir un estado editable a partir del payload, casando por nombre con el equipo actual
+  const team = editBackup.state.workers;
+  const byName = {}; team.forEach(w=>{ byName[w.name] = w; });
+  const workers = [];
+  const idByIndex = {};
+  (p.w || []).forEach((name, i)=>{
+    const base = byName[name];
+    const w = base ? {id:base.id, name:base.name, shifts:base.shifts} : {id:'tmp'+i, name, shifts:7};
+    idByIndex[String(i)] = w.id;
+    workers.push(w);
+  });
+  // Añadir el resto del equipo actual para poder usarlos en la edición
+  for(const t of team){
+    if(!workers.some(w=>w.name===t.name)) workers.push({id:t.id, name:t.name, shifts:t.shifts});
+  }
+  const cells = {};
+  for(const k in (p.c || {})){
+    cells[k] = p.c[k].map(x => x==='A' ? ALL_ID : idByIndex[x]).filter(x=>x!=null);
+  }
+  // Recuperar las fechas de "del X al Y de MES"
+  let weekFrom='', weekTo='', weekMonth='';
+  const m = /^del (\d+) al (\d+) de (\S+)$/.exec(p.d || '');
+  if(m){ weekFrom=m[1]; weekTo=m[2]; weekMonth=m[3]; }
+  return { workers, cells, dateLabel: p.d || '', weekFrom, weekTo, weekMonth };
+}
+
+function openEditor(index, item){
+  editBackup = { state: JSON.parse(JSON.stringify(state)), selectedId };
+  editMode = { index };
+  state = payloadToEditingState(item);
+  selectedId = null;
+  document.body.classList.add('edit-mode');
+  document.getElementById('edit-banner-text').textContent =
+    'Editando cuadrante '+(item.d || '(sin fechas)')+' — se publicará el '+publishDateFor(index);
+  switchTab('cuadrante');
+  renderAll();
+}
+
+function closeEditor(){
+  state = editBackup.state;
+  selectedId = editBackup.selectedId;
+  editBackup = null;
+  editMode = null;
+  document.body.classList.remove('edit-mode');
+  renderAll();
+  switchTab('programar');
+}
+
+document.getElementById('btn-edit-cancel').addEventListener('click', ()=>{
+  closeEditor();
+  toast('Edición cancelada, sin cambios');
+});
+
+document.getElementById('btn-edit-save').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-edit-save');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try{
+    const payload = buildPayload();
+    const idx = editMode.index;
+    const cur = await ghGetFile(QUEUE_FILE);
+    const curList = cur ? JSON.parse(cur.text) : [];
+    if(idx >= curList.length){ toast('Esa semana ya no está en la cola (¿se publicó?)'); closeEditor(); return; }
+    curList[idx] = payload;
+    await ghPutFile(QUEUE_FILE, JSON.stringify(curList), 'Editar cuadrante programado '+(payload.d||''), cur ? cur.sha : null);
+    closeEditor();
+    toast('Semana programada actualizada');
+  }catch(e){ ghErrorToast(e); }
+  finally{ btn.disabled = false; btn.textContent = 'Guardar'; }
+});
 
 /* =================== Arranque =================== */
 if(VIEW_MODE){
