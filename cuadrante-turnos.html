@@ -214,6 +214,30 @@
   body.view-mode .chip{cursor:default}
   body.view-mode .chip .x{display:none}
 
+  .chip.hl{
+    border-color:var(--accent);background:var(--accent-soft);
+    box-shadow:0 0 0 2px var(--accent);font-weight:700;
+  }
+
+  /* ---------- Navegación del visor (?ver) ---------- */
+  #view-nav{
+    display:none;
+    position:sticky;bottom:0;
+    justify-content:center;align-items:center;gap:14px;
+    padding:10px;margin-top:8px;
+    background:var(--paper);border-top:2px solid var(--line);
+  }
+  body.view-mode.has-nav #view-nav{display:flex}
+  #view-nav button{
+    border:1px solid var(--line);background:var(--card);
+    width:46px;height:46px;border-radius:50%;
+    font-size:1.4rem;font-weight:700;color:var(--ink);
+  }
+  #view-nav button:disabled{opacity:.3}
+  #view-nav .nav-label{font-size:.85rem;font-weight:700;min-width:130px;text-align:center}
+  #view-nav .nav-label small{display:block;font-weight:400;color:var(--ink-soft)}
+  @media print{ #view-nav{display:none !important} }
+
   /* ---------- Modo edición de semana programada ---------- */
   #edit-banner{
     display:none;
@@ -308,6 +332,11 @@
         <div class="grid" id="grid"></div>
       </div>
     </div>
+    <div id="view-nav">
+      <button id="nav-prev">‹</button>
+      <span class="nav-label" id="nav-label"></span>
+      <button id="nav-next">›</button>
+    </div>
   </section>
 
   <!-- ============ TAB PROGRAMAR ============ -->
@@ -387,9 +416,14 @@ const ROLES = [
 const ALL_ID = '__ALL__';
 const STORE_KEY = 'cuadrante-estado-v1';
 
+// Sábado (día) y domingo empiezan cubiertos por TODOS; se puede quitar cuando haga falta
+function defaultCells(){
+  return { 'sab|cam': [ALL_ID], 'dom|cam': [ALL_ID] };
+}
+
 let state = {
   workers: [],          // {id, name, shifts}  turnos semanales
-  cells: {},            // "dayId|roleId" -> [workerId | ALL_ID, ...]
+  cells: defaultCells(),// "dayId|roleId" -> [workerId | ALL_ID, ...]
   dateLabel: '',
 };
 let selectedId = null;  // trabajador seleccionado (tap) o ALL_ID
@@ -589,7 +623,7 @@ function renderGrid(){
         const chip = document.createElement('div');
         const isAll = id===ALL_ID;
         const w = isAll ? null : workerById(id);
-        chip.className = 'chip' + (isAll?' all-chip':'');
+        chip.className = 'chip' + (isAll?' all-chip':'') + (selectedId===id?' hl':'');
         chip.innerHTML = '<span>'+(isAll?'TODOS':esc(w? w.name : '?'))+'</span><span class="x">✕</span>';
         const idx = i;
         if(!VIEW_MODE){
@@ -599,6 +633,14 @@ function renderGrid(){
             if(selectedId) assign(d.id, r.id, selectedId);
             else removeAssignment(d.id, r.id, idx);
           });
+          if(!isAll){
+            // Arrastrar un chip lo mueve de puesto (escritorio)
+            chip.draggable = true;
+            chip.addEventListener('dragstart', ev=>{
+              ev.stopPropagation();
+              ev.dataTransfer.setData('text/plain', 'move|'+d.id+'|'+r.id+'|'+idx+'|'+id);
+            });
+          }
         }
         zone.appendChild(chip);
       }
@@ -614,8 +656,28 @@ function renderGrid(){
         zone.addEventListener('drop', e=>{
           e.preventDefault();
           zone.classList.remove('drag-over');
-          const id = e.dataTransfer.getData('text/plain');
-          if(id) assign(d.id, r.id, id);
+          const data = e.dataTransfer.getData('text/plain');
+          if(!data) return;
+          if(data.startsWith('move|')){
+            const [, fromDay, fromRole, fromIdx, wid] = data.split('|');
+            if(fromDay===d.id && fromRole===r.id) return; // mismo hueco
+            // Validar destino ANTES de sacarlo del origen
+            if(dayHasAll(d.id)){ toast('Ese día está cubierto por TODOS. Quítalo para asignar por puestos.'); return; }
+            if(fromDay!==d.id){
+              for(const ro of ROLES){
+                if(cellList(d.id, ro.id).includes(wid)){
+                  const day = DAYS.find(x=>x.id===d.id);
+                  const w = workerById(wid);
+                  toast((w?w.name:'')+' ya está el '+day.label.toLowerCase()+' en '+ro.label.toLowerCase());
+                  return;
+                }
+              }
+            }
+            cellList(fromDay, fromRole).splice(parseInt(fromIdx,10), 1);
+            assign(d.id, r.id, wid);
+          }else{
+            assign(d.id, r.id, data);
+          }
         });
       }
 
@@ -756,7 +818,7 @@ resetBtn.addEventListener('click', ()=>{
   }
   clearTimeout(resetArmed); resetArmed = null;
   resetBtn.textContent = 'Reiniciar';
-  state.cells = {};
+  state.cells = defaultCells();
   state.dateLabel = '';
   state.weekFrom = ''; state.weekTo = ''; state.weekMonth = '';
   selectedId = null;
@@ -764,13 +826,14 @@ resetBtn.addEventListener('click', ()=>{
   toast('Plantilla reiniciada. Turnos restaurados.');
 });
 
-document.getElementById('btn-print').addEventListener('click', ()=>{
+function printGrid(){
   document.getElementById('export-title').textContent =
     'Cuadrante ' + (state.dateLabel || '');
   window.print();
-});
+}
+document.getElementById('btn-print').addEventListener('click', printGrid);
 
-document.getElementById('btn-png').addEventListener('click', async ()=>{
+async function exportPNG(){
   const title = document.getElementById('export-title');
   title.textContent = 'Cuadrante ' + (state.dateLabel || '');
   title.style.display = 'block';
@@ -796,7 +859,8 @@ document.getElementById('btn-png').addEventListener('click', async ()=>{
     title.style.display = 'none';
     scroller.style.overflow = prevOverflow;
   }
-});
+}
+document.getElementById('btn-png').addEventListener('click', exportPNG);
 
 /* =================== Equipo =================== */
 document.getElementById('btn-add').addEventListener('click', addWorker);
@@ -1050,6 +1114,12 @@ async function renderQueue(){
     const edit = document.createElement('button');
     edit.className = 'btn'; edit.textContent = 'Editar';
     edit.addEventListener('click', ()=>openEditor(i, item));
+    const png = document.createElement('button');
+    png.className = 'btn'; png.textContent = 'PNG';
+    png.addEventListener('click', ()=>withPayloadRendered(item, exportPNG));
+    const pr = document.createElement('button');
+    pr.className = 'btn'; pr.textContent = 'Imprimir';
+    pr.addEventListener('click', ()=>withPayloadRendered(item, async ()=>{ printGrid(); }));
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '✕'; del.title = 'Quitar de la cola';
     del.addEventListener('click', async ()=>{
@@ -1069,7 +1139,7 @@ async function renderQueue(){
         renderQueue();
       }catch(e){ ghErrorToast(e); }
     });
-    actions.append(edit, del);
+    actions.append(edit, png, pr, del);
     row.append(label, actions);
     box.appendChild(row);
   });
@@ -1078,9 +1148,8 @@ async function renderQueue(){
 /* =================== Editor de semanas programadas =================== */
 let editBackup = null;
 
-function payloadToEditingState(p){
-  // Reconstruir un estado editable a partir del payload, casando por nombre con el equipo actual
-  const team = editBackup.state.workers;
+function payloadToState(p, team){
+  // Reconstruir un estado editable a partir del payload, casando por nombre con el equipo dado
   const byName = {}; team.forEach(w=>{ byName[w.name] = w; });
   const workers = [];
   const idByIndex = {};
@@ -1105,10 +1174,26 @@ function payloadToEditingState(p){
   return { workers, cells, dateLabel: p.d || '', weekFrom, weekTo, weekMonth };
 }
 
+/* Renderiza temporalmente una semana programada para exportarla y restaura el cuadrante */
+async function withPayloadRendered(item, fn){
+  const bak = { state, selectedId };
+  state = payloadToState(item, bak.state.workers);
+  selectedId = null;
+  switchTab('cuadrante');
+  renderGrid();
+  try{ await fn(); }
+  finally{
+    state = bak.state;
+    selectedId = bak.selectedId;
+    renderAll();
+    switchTab('programar');
+  }
+}
+
 function openEditor(index, item){
   editBackup = { state: JSON.parse(JSON.stringify(state)), selectedId };
   editMode = { index };
-  state = payloadToEditingState(item);
+  state = payloadToState(item, editBackup.state.workers);
   selectedId = null;
   document.body.classList.add('edit-mode');
   document.getElementById('edit-banner-text').textContent =
@@ -1171,12 +1256,32 @@ if(VIEW_MODE){
       applyPayload(JSON.parse(LZString.decompressFromEncodedURIComponent(location.hash.slice(3))));
     }catch(e){ fail(); }
   }else{
-    // QR permanente: datos.json publicado junto a la app (cache-bust para ver lo último)
+    // QR permanente: carga la actual y las programadas para poder verlas con las flechas
     document.getElementById('export-title').textContent = 'Cargando cuadrante…';
-    fetch('datos.json?t='+Date.now(), {cache:'no-store'})
-      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
-      .then(applyPayload)
-      .catch(fail);
+    const bust = '?t='+Date.now();
+    const fetchJson = (name)=>fetch(name+bust, {cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    Promise.all([fetchJson('datos.json'), fetchJson('programadas.json')])
+      .then(([actual, prog])=>{
+        if(!actual){ fail(); return; }
+        const timeline = [actual].concat(Array.isArray(prog)?prog:[]);
+        let idx = 0;
+        const prevBtn = document.getElementById('nav-prev');
+        const nextBtn = document.getElementById('nav-next');
+        const label = document.getElementById('nav-label');
+        function show(){
+          applyPayload(timeline[idx]);
+          label.innerHTML = (idx===0 ? 'Semana actual' : 'Próximamente') +
+            '<small>' + esc(timeline[idx].d || '') + '</small>';
+          prevBtn.disabled = idx===0;
+          nextBtn.disabled = idx===timeline.length-1;
+        }
+        if(timeline.length > 1){
+          document.body.classList.add('has-nav');
+          prevBtn.addEventListener('click', ()=>{ if(idx>0){ idx--; show(); } });
+          nextBtn.addEventListener('click', ()=>{ if(idx<timeline.length-1){ idx++; show(); } });
+        }
+        show();
+      });
   }
 }else{
   loadState();

@@ -1,0 +1,51 @@
+name: Publicar semana programada
+
+on:
+  schedule:
+    # Se ejecuta los domingos a las 17:00 y 18:00 UTC.
+    # El paso de abajo comprueba la hora canaria real (cambia con el
+    # horario de verano/invierno) y solo publica cuando son las 18h en Canarias.
+    - cron: '0 17,18 * * 0'
+  # Permite lanzarlo a mano desde la pestaña Actions para probar
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publicar la siguiente semana de la cola
+        run: |
+          # Si se lanza a mano (workflow_dispatch), publica sin mirar la hora
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            HORA=$(TZ=Atlantic/Canary date +%H)
+            if [ "$HORA" != "18" ]; then
+              echo "En Canarias son las ${HORA}h, no las 18h. No toca publicar."
+              exit 0
+            fi
+          fi
+
+          if [ ! -f programadas.json ]; then
+            echo "No existe programadas.json. Nada que publicar."
+            exit 0
+          fi
+
+          N=$(jq 'length' programadas.json)
+          if [ "$N" -eq 0 ]; then
+            echo "La cola está vacía. Nada que publicar."
+            exit 0
+          fi
+
+          echo "Publicando la primera semana de la cola ($N pendientes)..."
+          jq '.[0]' programadas.json > datos.json
+          jq '.[1:]' programadas.json > tmp.json && mv tmp.json programadas.json
+
+          git config user.name "cuadrante-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add datos.json programadas.json
+          git commit -m "Publicación automática de semana programada"
+          git push
