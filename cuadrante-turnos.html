@@ -293,8 +293,9 @@
   <h1>Cuadrante</h1>
   <nav class="tabs">
     <button class="tab-btn active" data-tab="cuadrante">Cuadrante</button>
-    <button class="tab-btn" data-tab="programar">Programar</button>
+    <button class="tab-btn" data-tab="programar">Programadas</button>
     <button class="tab-btn" data-tab="equipo">Equipo</button>
+    <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
 </header>
 
@@ -363,14 +364,56 @@
     </div>
 
     <div class="panel">
-      <h2>Publicación (GitHub)</h2>
-      <div class="add-form" style="flex-direction:column;align-items:stretch">
-        <input type="text" id="gh-user" placeholder="Usuario de GitHub" autocomplete="off">
-        <input type="text" id="gh-repo" placeholder="Nombre del repositorio" autocomplete="off">
-        <input type="password" id="gh-token" placeholder="Token (PAT con permiso Contents)" autocomplete="off">
+      <h2>Funcionamiento</h2>
+      <div class="setting-row">
+        <span class="note">Cada trabajador tiene un número de turnos semanales. Cada vez que lo colocas en un puesto (día o noche) consume 1 turno. Al completarlos su tarjeta se atenúa, y si se pasa se marca en amarillo.</span>
       </div>
-      <div class="setting-row" style="margin-top:8px">
-        <span class="note">Se configura una sola vez por dispositivo. Al pulsar "Publicar" en el cuadrante, se sube el archivo <strong>datos.json</strong> al repositorio y el QR permanente pasa a mostrar la versión nueva (tarda 1-2 min en refrescar). El token se guarda en este dispositivo y también en las copias de seguridad que exportes: guarda ese archivo en sitio seguro y no lo subas al repositorio.</span>
+    </div>
+  </section>
+
+  <!-- ============ TAB AJUSTES ============ -->
+  <section id="tab-ajustes" class="hidden">
+    <div class="panel">
+      <h2>Puestos</h2>
+      <div class="setting-row" style="margin-bottom:8px">
+        <span class="note">Puestos que aparecen en cada día del cuadrante y su mínimo de personas. Al borrar un puesto se vacían sus asignaciones.</span>
+      </div>
+      <div class="worker-list" id="roles-list"></div>
+      <div class="add-form" style="margin-top:10px">
+        <input type="text" id="new-role-name" placeholder="Nombre del puesto" maxlength="20">
+        <input type="number" id="new-role-min" placeholder="Mínimo" min="0" max="20">
+        <button class="btn primary" id="btn-add-role">Añadir puesto</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Días de la semana</h2>
+      <div class="setting-row" style="margin-bottom:8px">
+        <span class="note">Marca qué días tiene el cuadrante y cuáles llevan además columna de noche. Al desmarcar un día se vacían sus asignaciones.</span>
+      </div>
+      <div class="worker-list" id="days-list"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Publicación (GitHub)</h2>
+      <div id="gh-gate">
+        <div class="add-form">
+          <input type="password" id="gh-gate-pass" placeholder="Contraseña" autocomplete="off">
+          <button class="btn" id="gh-gate-btn">Mostrar</button>
+        </div>
+        <div class="setting-row" style="margin-top:6px">
+          <span class="note">Esta sección está protegida para evitar cambios accidentales.</span>
+        </div>
+      </div>
+      <div id="gh-settings" class="hidden">
+        <div class="add-form" style="flex-direction:column;align-items:stretch">
+          <input type="text" id="gh-user" placeholder="Usuario de GitHub" autocomplete="off">
+          <input type="text" id="gh-repo" placeholder="Nombre del repositorio" autocomplete="off">
+          <input type="password" id="gh-token" placeholder="Token (PAT con permiso Contents)" autocomplete="off">
+        </div>
+        <div class="setting-row" style="margin-top:8px">
+          <span class="note">Se configura una sola vez por dispositivo. Al pulsar "Publicar" se sube <strong>datos.json</strong> al repositorio para el QR de empleados. Además, con esto configurado tus datos de trabajo (equipo, cuadrante en curso y ajustes) se <strong>sincronizan automáticamente entre tus dispositivos</strong> a través del repositorio; el token nunca se sube, hay que ponerlo una vez en cada dispositivo. El token sí va en las copias de seguridad que exportes: guarda ese archivo en sitio seguro y no lo subas al repositorio.</span>
+        </div>
       </div>
     </div>
 
@@ -380,14 +423,7 @@
         <button class="btn" id="btn-export">Exportar datos</button>
         <button class="btn" id="btn-import">Importar datos</button>
         <input type="file" id="import-file" accept=".json,application/json" style="display:none">
-        <span class="note">Exportar descarga un archivo con tus trabajadores y el cuadrante actual. Importar lo restaura desde ese archivo (sustituye lo que haya). Incluye también la configuración de GitHub (con el token), así configuras otro dispositivo importando el archivo. No compartas este archivo ni lo subas al repositorio.</span>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>Ajustes</h2>
-      <div class="setting-row">
-        <span class="note">Cada trabajador tiene un número de turnos semanales. Cada vez que lo colocas en un puesto (día o noche) consume 1 turno. Al agotarlos, su tarjeta se deshabilita.</span>
+        <span class="note">Exportar descarga un archivo con tus trabajadores, el cuadrante actual y la configuración (puestos, días y GitHub, incluido el token): guarda ese archivo en sitio seguro y no lo compartas ni lo subas al repositorio. Importar lo restaura todo en otro dispositivo.</span>
       </div>
     </div>
   </section>
@@ -397,7 +433,16 @@
 
 <script>
 /* =================== Datos =================== */
-const DAYS = [
+const BASE_DAYS = [
+  {id:'lun', label:'Lunes'},
+  {id:'mar', label:'Martes'},
+  {id:'mie', label:'Miércoles'},
+  {id:'jue', label:'Jueves'},
+  {id:'vie', label:'Viernes'},
+  {id:'sab', label:'Sábado'},
+  {id:'dom', label:'Domingo'},
+];
+const DEFAULT_DAYS = [
   {id:'lun',  label:'Lunes'},
   {id:'mar',  label:'Martes'},
   {id:'mie',  label:'Miércoles'},
@@ -408,24 +453,44 @@ const DAYS = [
   {id:'sabN', label:'Sábado noche', night:true},
   {id:'dom',  label:'Domingo'},
 ];
-const ROLES = [
-  {id:'cam', label:'Camareros', min:3, cls:'role-cam'},
-  {id:'par', label:'Parrilla',  min:1, cls:'role-par'},
-  {id:'coc', label:'Cocineros', min:2, cls:'role-coc'},
+const DEFAULT_ROLES = [
+  {id:'cam', label:'Camareros', min:3},
+  {id:'par', label:'Parrilla',  min:1},
+  {id:'coc', label:'Cocineros', min:2},
 ];
+const ROLE_CLS = ['role-cam','role-par','role-coc'];
+
+// DAYS y ROLES son la configuración activa; se sincronizan desde state.config
+let DAYS = JSON.parse(JSON.stringify(DEFAULT_DAYS));
+let ROLES = JSON.parse(JSON.stringify(DEFAULT_ROLES));
+function syncConfig(){
+  if(!state.config) state.config = { days: JSON.parse(JSON.stringify(DEFAULT_DAYS)), roles: JSON.parse(JSON.stringify(DEFAULT_ROLES)) };
+  DAYS = state.config.days;
+  ROLES = state.config.roles;
+}
+function roleCls(i){ return ROLE_CLS[i % ROLE_CLS.length]; }
 const ALL_ID = '__ALL__';
 const STORE_KEY = 'cuadrante-estado-v1';
 
-// Sábado (día) y domingo empiezan cubiertos por TODOS; se puede quitar cuando haga falta
+// Sábado (día) y domingo empiezan cubiertos por TODOS (si existen ese día y algún puesto)
 function defaultCells(){
-  return { 'sab|cam': [ALL_ID], 'dom|cam': [ALL_ID] };
+  const c = {};
+  if(ROLES.length){
+    for(const dId of ['sab','dom']){
+      if(DAYS.some(d=>d.id===dId)) c[dId+'|'+ROLES[0].id] = [ALL_ID];
+    }
+  }
+  return c;
 }
 
 let state = {
   workers: [],          // {id, name, shifts}  turnos semanales
-  cells: defaultCells(),// "dayId|roleId" -> [workerId | ALL_ID, ...]
+  cells: {},            // "dayId|roleId" -> [workerId | ALL_ID, ...]
   dateLabel: '',
+  config: null,         // {days, roles} — se rellena en syncConfig()
 };
+syncConfig();
+state.cells = defaultCells();
 let selectedId = null;  // trabajador seleccionado (tap) o ALL_ID
 let saveTimer = null;
 let editMode = null;    // {index} cuando se edita una semana programada
@@ -459,22 +524,83 @@ async function loadState(){
       }
     }
   }catch(e){ /* primera vez: no existe la clave */ }
+  syncConfig();
   try{
     const g = await store.get(GH_KEY);
     if(g) ghConfig = Object.assign(ghConfig, JSON.parse(g));
   }catch(e){}
   renderAll();
+  // Si hay GitHub configurado, traer el estado más reciente de la nube
+  if(!VIEW_MODE && ghReady()){
+    const updated = await pullCloud();
+    if(updated) toast('Datos sincronizados desde la nube');
+  }
 }
 function saveGhConfig(){
   store.set(GH_KEY, JSON.stringify(ghConfig)).catch(()=>toast('No se pudo guardar la configuración'));
 }
 function scheduleSave(){
   if(VIEW_MODE || editMode) return;
+  state.updatedAt = Date.now();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     try{ await store.set(STORE_KEY, JSON.stringify(state)); }
     catch(e){ toast('No se pudo guardar. Reintenta.'); }
   }, 400);
+  scheduleCloudPush();
+}
+
+/* =================== Sincronización entre dispositivos =================== */
+const SYNC_FILE = 'sincronizacion.json';
+let cloudTimer = null;
+let cloudBusy = false;
+let cloudPending = false;
+
+function scheduleCloudPush(){
+  if(!ghReady()) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(pushCloud, 2500);
+}
+
+async function pushCloud(){
+  if(!ghReady()) return;
+  if(cloudBusy){ cloudPending = true; return; }
+  cloudBusy = true;
+  try{
+    const f = await ghGetFile(SYNC_FILE);
+    // No pisar un estado remoto más nuevo (otro dispositivo guardó después)
+    if(f){
+      try{
+        const remote = JSON.parse(f.text);
+        if(remote.updatedAt && state.updatedAt && remote.updatedAt > state.updatedAt){
+          cloudBusy = false;
+          return;
+        }
+      }catch(e){}
+    }
+    await ghPutFile(SYNC_FILE, JSON.stringify(state), 'Sincronización', f ? f.sha : null);
+  }catch(e){ /* silencioso: se reintentará con el siguiente cambio */ }
+  cloudBusy = false;
+  if(cloudPending){ cloudPending = false; scheduleCloudPush(); }
+}
+
+async function pullCloud(){
+  if(!ghReady()) return false;
+  try{
+    const f = await ghGetFile(SYNC_FILE);
+    if(!f) return false;
+    const remote = JSON.parse(f.text);
+    if(!Array.isArray(remote.workers)) return false;
+    if(remote.updatedAt && state.updatedAt && remote.updatedAt <= state.updatedAt) return false;
+    state = { workers: remote.workers, cells: remote.cells || {}, dateLabel: remote.dateLabel || '',
+              weekFrom: remote.weekFrom || '', weekTo: remote.weekTo || '', weekMonth: remote.weekMonth || '',
+              config: remote.config || null, updatedAt: remote.updatedAt || Date.now() };
+    syncConfig();
+    selectedId = null;
+    try{ await store.set(STORE_KEY, JSON.stringify(state)); }catch(e){}
+    renderAll();
+    return true;
+  }catch(e){ return false; }
 }
 
 /* =================== Utilidades =================== */
@@ -518,6 +644,7 @@ function renderAll(){
   renderStrip();
   renderGrid();
   renderWorkerList();
+  renderSettings();
   document.getElementById('week-from').value = state.weekFrom || '';
   document.getElementById('week-to').value = state.weekTo || '';
   document.getElementById('week-month').value = state.weekMonth || '';
@@ -602,9 +729,10 @@ function renderGrid(){
       continue;
     }
 
-    for(const r of ROLES){
+    for(let ri=0; ri<ROLES.length; ri++){
+      const r = ROLES[ri];
       const block = document.createElement('div');
-      block.className = 'role-block ' + r.cls;
+      block.className = 'role-block ' + roleCls(ri);
       const list = cellList(d.id, r.id);
       const ok = list.length >= r.min;
       const head = document.createElement('div');
@@ -786,6 +914,127 @@ function removeAssignment(dayId, roleId, index){
 }
 
 /* =================== Toolbar =================== */
+/* =================== Ajustes: puestos y días =================== */
+function cleanCellsForConfig(){
+  // Eliminar asignaciones de días o puestos que ya no existen (devuelve turnos solo)
+  const validDay = new Set(DAYS.map(d=>d.id));
+  const validRole = new Set(ROLES.map(r=>r.id));
+  for(const k of Object.keys(state.cells)){
+    const [dId, rId] = k.split('|');
+    if(!validDay.has(dId) || !validRole.has(rId)) delete state.cells[k];
+  }
+}
+
+function renderSettings(){
+  // ---- Puestos ----
+  const rolesBox = document.getElementById('roles-list');
+  rolesBox.innerHTML = '';
+  ROLES.forEach((r, i)=>{
+    const row = document.createElement('div');
+    row.className = 'worker-row';
+    const nameIn = document.createElement('input');
+    nameIn.type='text'; nameIn.value=r.label; nameIn.maxLength=20;
+    nameIn.addEventListener('change', ()=>{
+      r.label = nameIn.value.trim() || r.label;
+      nameIn.value = r.label;
+      renderGrid(); scheduleSave();
+    });
+    const minIn = document.createElement('input');
+    minIn.type='number'; minIn.min=0; minIn.max=20; minIn.value=r.min;
+    minIn.addEventListener('change', ()=>{
+      const v = parseInt(minIn.value,10);
+      if(v>=0 && v<=20){ r.min=v; renderGrid(); scheduleSave(); }
+      else minIn.value = r.min;
+    });
+    const lbl = document.createElement('span');
+    lbl.className='h-label'; lbl.textContent='mínimo';
+    const del = document.createElement('button');
+    del.className='del'; del.textContent='✕'; del.title='Eliminar puesto';
+    del.addEventListener('click', ()=>{
+      if(ROLES.length<=1){ toast('Tiene que quedar al menos un puesto'); return; }
+      if(!del._armed){
+        del._armed = setTimeout(()=>{ del._armed=null; del.textContent='✕'; }, 3000);
+        del.textContent='¿Borrar?';
+        return;
+      }
+      clearTimeout(del._armed);
+      ROLES.splice(i,1);
+      cleanCellsForConfig();
+      renderAll(); scheduleSave();
+      toast('Puesto eliminado');
+    });
+    row.append(nameIn, minIn, lbl, del);
+    rolesBox.appendChild(row);
+  });
+
+  // ---- Días ----
+  const daysBox = document.getElementById('days-list');
+  daysBox.innerHTML = '';
+  for(const base of BASE_DAYS){
+    const active = DAYS.some(d=>d.id===base.id);
+    const night = DAYS.some(d=>d.id===base.id+'N');
+    const row = document.createElement('div');
+    row.className = 'worker-row';
+    row.innerHTML =
+      '<label style="flex:1;display:flex;align-items:center;gap:8px;font-weight:600">' +
+        '<input type="checkbox" '+(active?'checked':'')+' data-day="'+base.id+'" data-kind="day"> '+base.label+
+      '</label>' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--ink-soft)">' +
+        '<input type="checkbox" '+(night?'checked':'')+' data-day="'+base.id+'" data-kind="night" '+(active?'':'disabled')+'> noche' +
+      '</label>';
+    daysBox.appendChild(row);
+  }
+  daysBox.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', rebuildDaysFromUI);
+  });
+}
+
+function rebuildDaysFromUI(){
+  const boxes = document.querySelectorAll('#days-list input[type=checkbox]');
+  const on = {};
+  boxes.forEach(cb=>{ on[cb.dataset.day+'|'+cb.dataset.kind] = cb.checked; });
+  const days = [];
+  for(const base of BASE_DAYS){
+    if(on[base.id+'|day']){
+      days.push({id:base.id, label:base.label});
+      if(on[base.id+'|night']) days.push({id:base.id+'N', label:base.label+' noche', night:true});
+    }
+  }
+  if(days.length===0){ toast('Tiene que quedar al menos un día'); renderSettings(); return; }
+  state.config.days = days;
+  syncConfig();
+  cleanCellsForConfig();
+  renderAll(); scheduleSave();
+}
+
+document.getElementById('btn-add-role').addEventListener('click', ()=>{
+  const nameIn = document.getElementById('new-role-name');
+  const minIn = document.getElementById('new-role-min');
+  const name = nameIn.value.trim();
+  const min = parseInt(minIn.value,10);
+  if(!name){ toast('Escribe el nombre del puesto'); return; }
+  if(!(min>=0 && min<=20)){ toast('Mínimo entre 0 y 20'); return; }
+  ROLES.push({ id:'r'+Date.now(), label:name, min });
+  nameIn.value=''; minIn.value='';
+  renderAll(); scheduleSave();
+});
+
+/* =================== Puerta de contraseña (GitHub) =================== */
+const GH_PASS = 'PixellzDEV';
+function tryUnlockGh(){
+  const input = document.getElementById('gh-gate-pass');
+  if(input.value === GH_PASS){
+    document.getElementById('gh-gate').classList.add('hidden');
+    document.getElementById('gh-settings').classList.remove('hidden');
+    input.value = '';
+  }else{
+    input.value = '';
+    toast('Contraseña incorrecta');
+  }
+}
+document.getElementById('gh-gate-btn').addEventListener('click', tryUnlockGh);
+document.getElementById('gh-gate-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') tryUnlockGh(); });
+
 /* =================== Selector de semana =================== */
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 (function fillWeekSelects(){
@@ -883,7 +1132,7 @@ function addWorker(){
 /* =================== Tabs =================== */
 function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-  for(const t of ['cuadrante','programar','equipo']){
+  for(const t of ['cuadrante','programar','equipo','ajustes']){
     document.getElementById('tab-'+t).classList.toggle('hidden', name!==t);
   }
   if(name==='programar') renderQueue();
@@ -920,7 +1169,8 @@ document.getElementById('import-file').addEventListener('change', e=>{
       if(!Array.isArray(s.workers) || typeof s.cells !== 'object'){
         toast('El archivo no tiene el formato esperado'); return;
       }
-      state = { workers: s.workers, cells: s.cells || {}, dateLabel: s.dateLabel || '' };
+      state = { workers: s.workers, cells: s.cells || {}, dateLabel: s.dateLabel || '', config: s.config || null };
+      syncConfig();
       if(s.github && typeof s.github === 'object'){
         ghConfig = Object.assign(ghConfig, s.github);
         saveGhConfig();
@@ -944,7 +1194,8 @@ function buildPayload(){
   for(const k in state.cells){
     if(state.cells[k].length) cells[k] = state.cells[k].map(id=>idMap[id]).filter(x=>x!=null);
   }
-  return { d: state.dateLabel, w: state.workers.map(w=>w.name), c: cells };
+  return { d: state.dateLabel, w: state.workers.map(w=>w.name), c: cells,
+           cfg: { days: JSON.parse(JSON.stringify(DAYS)), roles: JSON.parse(JSON.stringify(ROLES)) } };
 }
 function ghReady(){ return ghConfig.user && ghConfig.repo && ghConfig.token; }
 
@@ -988,9 +1239,14 @@ document.getElementById('btn-qr').addEventListener('click', ()=>{
 
 /* ---- Config GitHub ---- */
 for(const [inputId, key] of [['gh-user','user'],['gh-repo','repo'],['gh-token','token']]){
-  document.getElementById(inputId).addEventListener('change', e=>{
+  document.getElementById(inputId).addEventListener('change', async e=>{
     ghConfig[key] = e.target.value.trim();
     saveGhConfig();
+    // Dispositivo recién configurado: descargar lo que haya en la nube
+    if(ghReady()){
+      const updated = await pullCloud();
+      if(updated) toast('Datos sincronizados desde la nube');
+    }
   });
 }
 
@@ -1063,9 +1319,14 @@ scheduleBtn.addEventListener('click', async ()=>{
   try{
     const f = await ghGetFile(QUEUE_FILE);
     const list = f ? JSON.parse(f.text) : [];
-    list.push(buildPayload());
-    await ghPutFile(QUEUE_FILE, JSON.stringify(list), 'Programar cuadrante '+state.dateLabel, f ? f.sha : null);
-    toast('Semana programada (posición '+list.length+' en la cola)');
+    const item = buildPayload();
+    item.pub = computePubDate(item.d);
+    if(!item.pub){ toast('No se pudo interpretar la fecha de la semana'); return; }
+    list.push(item);
+    const norm = normalizeQueue(list);
+    await ghPutFile(QUEUE_FILE, JSON.stringify(norm.list), 'Programar cuadrante '+state.dateLabel, f ? f.sha : null);
+    const pos = norm.list.indexOf(item);
+    toast('Semana programada. Saldrá el '+pubInfo(item).label+'.');
   }catch(e){ ghErrorToast(e); }
   finally{
     scheduleBtn.disabled = false;
@@ -1073,16 +1334,52 @@ scheduleBtn.addEventListener('click', async ()=>{
   }
 });
 
-/* Fecha (hora canaria) en la que se publicará el elemento i de la cola */
+/* Fecha de inicio (YYYY-MM-DD) a partir de "del X al Y de MES", deduciendo el año */
+function computePubDate(label){
+  const m = /^del (\d+) al (\d+) de (\S+)$/.exec(label || '');
+  if(!m) return null;
+  const day = parseInt(m[1],10);
+  const mi = MONTHS.indexOf(m[3].toLowerCase());
+  if(mi < 0 || !(day>=1 && day<=31)) return null;
+  const now = canaryNow();
+  let d = new Date(now.getFullYear(), mi, day);
+  // Si queda muy en el pasado, se refiere al año siguiente (ej: programar enero en diciembre)
+  if(d.getTime() < now.getTime() - 120*86400000) d = new Date(now.getFullYear()+1, mi, day);
+  const p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+
+/* Domingo en que se publicará una semana programada, según su fecha de inicio */
+function pubInfo(item){
+  if(!item.pub) return { label:'(fechas no válidas: no se publicará sola)', overdue:false };
+  const [y,mo,da] = item.pub.split('-').map(Number);
+  const d = new Date(y, mo-1, da);
+  while(d.getDay()!==0) d.setDate(d.getDate()-1); // domingo anterior al inicio
+  const now = canaryNow();
+  const overdue = d.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+                  && !(d.toDateString()===now.toDateString() && now.getHours()<18);
+  return { label:'domingo '+d.getDate()+' de '+MONTHS[d.getMonth()], overdue };
+}
+
+/* Rellenar fechas que falten y ordenar la cola por fecha (sin fecha al final) */
+function normalizeQueue(list){
+  let changed = false;
+  for(const item of list){
+    if(!item.pub){
+      const p = computePubDate(item.d);
+      if(p){ item.pub = p; changed = true; }
+    }
+  }
+  const sorted = [...list].sort((a,b)=>{
+    const A = a.pub || '9999-99-99', B = b.pub || '9999-99-99';
+    return A < B ? -1 : A > B ? 1 : 0;
+  });
+  if(sorted.some((x,i)=>x!==list[i])) changed = true;
+  return { list: sorted, changed };
+}
+
 function canaryNow(){
   return new Date(new Date().toLocaleString('en-US', {timeZone:'Atlantic/Canary'}));
-}
-function publishDateFor(i){
-  const d = canaryNow();
-  let add = (7 - d.getDay()) % 7;             // días hasta el próximo domingo
-  if(add===0 && d.getHours()>=18) add = 7;    // hoy es domingo pero ya pasaron las 18h
-  d.setDate(d.getDate() + add + i*7);
-  return 'domingo ' + d.getDate() + ' de ' + MONTHS[d.getMonth()];
 }
 
 async function renderQueue(){
@@ -1096,6 +1393,12 @@ async function renderQueue(){
   try{
     f = await ghGetFile(QUEUE_FILE);
     list = f ? JSON.parse(f.text) : [];
+    // Migrar/ordenar por fecha si hace falta y guardar la cola normalizada
+    const norm = normalizeQueue(list);
+    if(norm.changed){
+      await ghPutFile(QUEUE_FILE, JSON.stringify(norm.list), 'Ordenar semanas programadas por fecha', f ? f.sha : null);
+    }
+    list = norm.list;
   }catch(e){ box.innerHTML = '<p class="empty-note">No se pudo cargar la lista. Revisa la conexión y la configuración.</p>'; return; }
   if(list.length===0){
     box.innerHTML = '<p class="empty-note">No hay semanas programadas. Monta un cuadrante y pulsa "Programar semana".</p>';
@@ -1107,8 +1410,11 @@ async function renderQueue(){
     row.className = 'worker-row';
     const label = document.createElement('span');
     label.style.flex = '1';
-    label.innerHTML = '<strong>'+(i+1)+'.</strong> Cuadrante '+esc(item.d || '(sin fechas)') +
-      '<span class="queue-date">Se publicará el '+publishDateFor(i)+(i===0?' (próxima)':'')+'</span>';
+    const info = pubInfo(item);
+    const dateLine = info.overdue
+      ? '<span class="queue-date" style="color:var(--bad)">⚠ Su domingo ('+info.label+') ya pasó: no se publicará sola. Publícala a mano o quítala.</span>'
+      : '<span class="queue-date">Se publicará el '+info.label+'</span>';
+    label.innerHTML = '<strong>'+(i+1)+'.</strong> Cuadrante '+esc(item.d || '(sin fechas)') + dateLine;
     const actions = document.createElement('div');
     actions.className = 'queue-actions';
     const edit = document.createElement('button');
@@ -1171,19 +1477,22 @@ function payloadToState(p, team){
   let weekFrom='', weekTo='', weekMonth='';
   const m = /^del (\d+) al (\d+) de (\S+)$/.exec(p.d || '');
   if(m){ weekFrom=m[1]; weekTo=m[2]; weekMonth=m[3]; }
-  return { workers, cells, dateLabel: p.d || '', weekFrom, weekTo, weekMonth };
+  const config = p.cfg ? JSON.parse(JSON.stringify(p.cfg)) : JSON.parse(JSON.stringify(state.config));
+  return { workers, cells, dateLabel: p.d || '', weekFrom, weekTo, weekMonth, config };
 }
 
 /* Renderiza temporalmente una semana programada para exportarla y restaura el cuadrante */
 async function withPayloadRendered(item, fn){
   const bak = { state, selectedId };
   state = payloadToState(item, bak.state.workers);
+  syncConfig();
   selectedId = null;
   switchTab('cuadrante');
   renderGrid();
   try{ await fn(); }
   finally{
     state = bak.state;
+    syncConfig();
     selectedId = bak.selectedId;
     renderAll();
     switchTab('programar');
@@ -1194,16 +1503,18 @@ function openEditor(index, item){
   editBackup = { state: JSON.parse(JSON.stringify(state)), selectedId };
   editMode = { index };
   state = payloadToState(item, editBackup.state.workers);
+  syncConfig();
   selectedId = null;
   document.body.classList.add('edit-mode');
   document.getElementById('edit-banner-text').textContent =
-    'Editando cuadrante '+(item.d || '(sin fechas)')+' — se publicará el '+publishDateFor(index);
+    'Editando cuadrante '+(item.d || '(sin fechas)')+' — se publicará el '+pubInfo(item).label;
   switchTab('cuadrante');
   renderAll();
 }
 
 function closeEditor(){
   state = editBackup.state;
+  syncConfig();
   selectedId = editBackup.selectedId;
   editBackup = null;
   editMode = null;
@@ -1222,12 +1533,14 @@ document.getElementById('btn-edit-save').addEventListener('click', async ()=>{
   btn.disabled = true; btn.textContent = 'Guardando…';
   try{
     const payload = buildPayload();
+    payload.pub = computePubDate(payload.d);
     const idx = editMode.index;
     const cur = await ghGetFile(QUEUE_FILE);
     const curList = cur ? JSON.parse(cur.text) : [];
     if(idx >= curList.length){ toast('Esa semana ya no está en la cola (¿se publicó?)'); closeEditor(); return; }
     curList[idx] = payload;
-    await ghPutFile(QUEUE_FILE, JSON.stringify(curList), 'Editar cuadrante programado '+(payload.d||''), cur ? cur.sha : null);
+    const norm = normalizeQueue(curList);
+    await ghPutFile(QUEUE_FILE, JSON.stringify(norm.list), 'Editar cuadrante programado '+(payload.d||''), cur ? cur.sha : null);
     closeEditor();
     toast('Semana programada actualizada');
   }catch(e){ ghErrorToast(e); }
@@ -1238,6 +1551,7 @@ document.getElementById('btn-edit-save').addEventListener('click', async ()=>{
 if(VIEW_MODE){
   document.body.classList.add('view-mode');
   const applyPayload = (payload)=>{
+    if(payload.cfg){ state.config = payload.cfg; syncConfig(); }
     state.dateLabel = payload.d || '';
     state.workers = (payload.w || []).map((name,i)=>({id:String(i), name, shifts:99}));
     // Los índices 'A' del payload son la tarjeta TODOS

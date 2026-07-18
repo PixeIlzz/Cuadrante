@@ -40,9 +40,29 @@ jobs:
             exit 0
           fi
 
-          echo "Publicando la primera semana de la cola ($N pendientes)..."
-          jq '.[0]' programadas.json > datos.json
-          jq '.[1:]' programadas.json > tmp.json && mv tmp.json programadas.json
+          # Elegir por fecha: la semana cuyo inicio (pub) cae en los próximos días.
+          # En ejecución manual se permite también recuperar la semana en curso.
+          HOY=$(TZ=Atlantic/Canary date +%F)
+          LIM=$(TZ=Atlantic/Canary date -d "+8 days" +%F)
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            MIN="$HOY"
+          else
+            MIN=$(TZ=Atlantic/Canary date -d "-6 days" +%F)
+          fi
+
+          IDX=$(jq -r --arg lim "$LIM" --arg min "$MIN" '
+            [to_entries[] | select(.value.pub != null and .value.pub <= $lim and .value.pub >= $min)]
+            | sort_by(.value.pub) | (if length > 0 then .[0].key else "none" end)
+          ' programadas.json)
+
+          if [ "$IDX" = "none" ]; then
+            echo "Ninguna semana programada corresponde a estas fechas ($MIN a $LIM). No se publica nada."
+            exit 0
+          fi
+
+          echo "Publicando la semana programada en la posición $IDX..."
+          jq ".[$IDX]" programadas.json > datos.json
+          jq "del(.[$IDX])" programadas.json > tmp.json && mv tmp.json programadas.json
 
           git config user.name "cuadrante-bot"
           git config user.email "actions@users.noreply.github.com"
