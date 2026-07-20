@@ -256,6 +256,8 @@
 
   /* ---------- Vacaciones ---------- */
   .worker-card.vac{border-color:#1d8ea6}
+  .day-col.vac-day .day-name{background:#1d8ea6}
+  .chip.chip-vac{border-color:#1d8ea6;background:#eaf7fa}
   .worker-card .w-vac{
     font-size:.68rem;color:#1d8ea6;font-weight:700;margin-top:3px;white-space:nowrap;
   }
@@ -805,9 +807,13 @@ function renderGrid(){
   for(const d of DAYS){
     const col = document.createElement('div');
     col.className = 'day-col' + (d.night?' night':'');
+    // Con un trabajador seleccionado, marcar sus días de vacaciones
+    const selW = (selectedId && selectedId!==ALL_ID) ? workerById(selectedId) : null;
+    const selVacDay = selW ? onVacation(selW, dateForDay(d.id)) : false;
+    if(selVacDay) col.classList.add('vac-day');
     const name = document.createElement('div');
     name.className = 'day-name';
-    name.textContent = d.label;
+    name.textContent = d.label + (selVacDay ? ' 🏖' : '');
     col.appendChild(name);
 
     // Nota del día: editable normalmente; en el visor solo se muestra si hay texto
@@ -894,8 +900,9 @@ function renderGrid(){
         const chip = document.createElement('div');
         const isAll = id===ALL_ID;
         const w = isAll ? null : workerById(id);
-        chip.className = 'chip' + (isAll?' all-chip':'') + (selectedId===id?' hl':'');
-        chip.innerHTML = '<span>'+(isAll?'TODOS':esc(w? w.name : '?'))+'</span><span class="x">✕</span>';
+        const chipVac = !isAll && w ? onVacation(w, dateForDay(d.id)) : false;
+        chip.className = 'chip' + (isAll?' all-chip':'') + (selectedId===id?' hl':'') + (chipVac?' chip-vac':'');
+        chip.innerHTML = '<span>'+(chipVac?'🏖 ':'')+(isAll?'TODOS':esc(w? w.name : '?'))+'</span><span class="x">✕</span>';
         const idx = i;
         if(!VIEW_MODE){
           chip.addEventListener('click', ev=>{
@@ -1110,15 +1117,16 @@ function assign(dayId, roleId, id){
       return;
     }
   }
-  // Vacaciones: bloquear solo los días concretos que caen dentro del periodo
+  // Vacaciones: avisar, pero permitir por si hay que darle un turno igualmente
   const dayIso = dateForDay(dayId);
+  let vacWarn = false;
   if(onVacation(w, dayIso)){
     const day = DAYS.find(x=>x.id===dayId);
-    toast(w.name+' está de vacaciones el '+day.label.toLowerCase()+' ('+fmtShort(dayIso)+')');
-    return;
+    toast('Ojo: '+w.name+' está de vacaciones el '+day.label.toLowerCase()+' ('+fmtShort(dayIso)+')');
+    vacWarn = true;
   }
   list.push(id);
-  if(usedShifts(w.id) > w.shifts) toast(w.name+' tiene turnos de más esta semana');
+  if(!vacWarn && usedShifts(w.id) > w.shifts) toast(w.name+' tiene turnos de más esta semana');
   renderStrip(); renderGrid(); scheduleSave();
 }
 
