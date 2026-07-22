@@ -4,13 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Cuadrante de turnos</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#182135">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json" id="manifest-link">
+<meta name="theme-color" content="#182135" id="theme-color-meta">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" id="favicon-link">
+<link rel="apple-touch-icon" href="icon-180.png" id="apple-icon-link">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Cuadrante">
+<meta name="apple-mobile-web-app-title" content="Cuadrante" id="apple-title-meta">
+<script>
+// En modo visor (?ver), la app instalable es la del visor, con su icono y nombre
+if(location.search.includes('ver')){
+  document.getElementById('manifest-link').href = 'manifest-ver.json';
+  document.getElementById('apple-icon-link').href = 'icon-ver-180.png';
+  document.getElementById('favicon-link').href = 'icon-ver-192.png';
+  document.getElementById('apple-title-meta').content = 'Turnos';
+  document.getElementById('theme-color-meta').content = '#125e70';
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>

@@ -1,4 +1,5 @@
 {
+  "id": "cuadrante-gestor",
   "name": "Cuadrante de turnos",
   "short_name": "Cuadrante",
   "description": "Planificador semanal de turnos con publicación por QR",

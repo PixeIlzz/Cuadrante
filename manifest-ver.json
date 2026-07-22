@@ -1,0 +1,16 @@
+{
+  "id": "cuadrante-ver",
+  "name": "Turnos (cuadrante)",
+  "short_name": "Turnos",
+  "description": "Consulta del cuadrante de turnos publicado",
+  "start_url": "cuadrante-turnos.html?ver",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f4f7",
+  "theme_color": "#125e70",
+  "icons": [
+    { "src": "icon-ver-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-ver-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
