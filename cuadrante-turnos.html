@@ -12,7 +12,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cuadrante" id="apple-title-meta">
 <script>
-// En modo visor (?ver o ver.html), la app instalable es la del visor, con su icono y nombre
+// La entrada del visor es ver.html: si alguien llega por la dirección antigua ?ver,
+// lo mandamos allí (salvo cuando ya estamos dentro del marco de ver.html)
+if(location.search.includes('ver') && window.self === window.top){
+  location.replace('ver.html');
+}
+// En modo visor, la app instalable es la del visor, con su icono y nombre
 if(location.search.includes('ver') || location.pathname.endsWith('ver.html') || window.__FORCE_VER === true){
   document.getElementById('manifest-link').href = 'manifest-ver.json';
   document.getElementById('apple-icon-link').href = 'icon-ver-180.png';
