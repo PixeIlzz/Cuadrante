@@ -3,7 +3,7 @@
   "name": "Turnos (cuadrante)",
   "short_name": "Turnos",
   "description": "Consulta del cuadrante de turnos publicado",
-  "start_url": "cuadrante-turnos.html?ver",
+  "start_url": "ver.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

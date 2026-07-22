@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turnos</title>
+</head>
+<body>
+<script>
+// Entrada del visor: carga la app principal forzando el modo solo lectura.
+// Tener dirección propia (ver.html) evita que iPhone recorte "?ver" al instalar.
+window.__FORCE_VER = true;
+fetch('cuadrante-turnos.html')
+  .then(r => r.text())
+  .then(t => { document.open(); document.write(t); document.close(); })
+  .catch(() => { document.body.textContent = 'No se pudo cargar. Comprueba la conexión y reintenta.'; });
+</script>
+</body>
+</html>

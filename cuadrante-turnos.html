@@ -12,8 +12,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cuadrante" id="apple-title-meta">
 <script>
-// En modo visor (?ver), la app instalable es la del visor, con su icono y nombre
-if(location.search.includes('ver')){
+// En modo visor (?ver o ver.html), la app instalable es la del visor, con su icono y nombre
+if(location.search.includes('ver') || location.pathname.endsWith('ver.html') || window.__FORCE_VER === true){
   document.getElementById('manifest-link').href = 'manifest-ver.json';
   document.getElementById('apple-icon-link').href = 'icon-ver-180.png';
   document.getElementById('favicon-link').href = 'icon-ver-192.png';
@@ -568,9 +568,11 @@ let saveTimer = null;
 let editMode = null;    // {index} cuando se edita una semana programada
 
 /* Modo solo lectura:
-   - #v=…  → datos incrustados en el enlace (QR de una semana concreta)
-   - ?ver  → QR permanente: descarga datos.json publicado junto a la app */
-const VIEW_MODE = location.hash.startsWith('#v=') || location.search.includes('ver');
+   - #v=…      → datos incrustados en el enlace (QR de una semana concreta)
+   - ?ver      → QR permanente antiguo
+   - ver.html  → entrada propia del visor (la que usan los QR e instalaciones nuevas) */
+const VIEW_MODE = location.hash.startsWith('#v=') || location.search.includes('ver')
+  || location.pathname.endsWith('ver.html') || window.__FORCE_VER === true;
 const GH_KEY = 'cuadrante-github-v1';
 let ghConfig = { user:'', repo:'', token:'' };
 
@@ -1456,7 +1458,7 @@ document.getElementById('btn-qr').addEventListener('click', ()=>{
   const shareable = location.protocol === 'http:' || location.protocol === 'https:';
   let url, title, extra = '';
   if(ghReady()){
-    url = base + '?ver';
+    url = base.replace(/[^/]*$/, 'ver.html');
     title = 'QR permanente para empleados';
     extra = '<div class="qr-warn" style="color:var(--ink-soft)">Este QR no cambia: siempre muestra la última versión publicada. Pulsa "Publicar" tras cada cambio.</div>';
   }else{
