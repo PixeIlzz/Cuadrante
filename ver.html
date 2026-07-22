@@ -2,18 +2,22 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Turnos</title>
+<!-- Todo estático: el iPhone captura SIEMPRE la identidad del visor al añadir a inicio -->
+<link rel="manifest" href="manifest-ver.json">
+<meta name="theme-color" content="#125e70">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-ver-192.png">
+<link rel="apple-touch-icon" href="icon-ver-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Turnos">
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#f2f4f7}
+  iframe{position:fixed;inset:0;width:100%;height:100%;border:0}
+</style>
 </head>
 <body>
-<script>
-// Entrada del visor: carga la app principal forzando el modo solo lectura.
-// Tener dirección propia (ver.html) evita que iPhone recorte "?ver" al instalar.
-window.__FORCE_VER = true;
-fetch('cuadrante-turnos.html')
-  .then(r => r.text())
-  .then(t => { document.open(); document.write(t); document.close(); })
-  .catch(() => { document.body.textContent = 'No se pudo cargar. Comprueba la conexión y reintenta.'; });
-</script>
+<iframe src="cuadrante-turnos.html?ver" title="Cuadrante de turnos"></iframe>
 </body>
 </html>
