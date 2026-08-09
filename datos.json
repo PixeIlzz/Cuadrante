@@ -1,5 +1,5 @@
 {
-  "d": "del 20 al 26 de julio",
+  "d": "del 27 de julio al 2 de agosto",
   "w": [
     "Adonay",
     "Marcos",
@@ -26,10 +26,11 @@
     "lun|cam": [
       "2",
       "7",
-      "4"
+      "4",
+      "13"
     ],
     "lun|par": [
-      "3"
+      "0"
     ],
     "lun|coc": [
       "5",
@@ -38,10 +39,11 @@
     "mar|cam": [
       "2",
       "9",
-      "1"
+      "4",
+      "13"
     ],
     "mar|par": [
-      "3"
+      "0"
     ],
     "mar|coc": [
       "5",
@@ -63,11 +65,11 @@
     "jue|cam": [
       "14",
       "8",
-      "4",
-      "9"
+      "9",
+      "7"
     ],
     "jue|par": [
-      "0"
+      "1"
     ],
     "jue|coc": [
       "11",
@@ -78,11 +80,12 @@
       "7",
       "14",
       "13",
-      "1"
+      "8",
+      "16"
     ],
     "vie|par": [
       "0",
-      "8"
+      "1"
     ],
     "vie|coc": [
       "5",
@@ -93,15 +96,17 @@
       "8",
       "13",
       "14",
-      "1"
+      "16",
+      "7"
     ],
     "vieN|par": [
-      "0"
+      "0",
+      "1"
     ],
     "vieN|coc": [
       "5",
-      "7",
-      "11"
+      "11",
+      "17"
     ],
     "sab|cam": [
       "A"
@@ -112,7 +117,8 @@
       "7",
       "19",
       "13",
-      "14"
+      "14",
+      "16"
     ],
     "sabN|par": [
       "0",
@@ -127,5 +133,64 @@
       "A"
     ]
   },
-  "pub": "2026-07-20"
+  "cfg": {
+    "days": [
+      {
+        "id": "lun",
+        "label": "Lunes"
+      },
+      {
+        "id": "mar",
+        "label": "Martes"
+      },
+      {
+        "id": "mie",
+        "label": "Miércoles"
+      },
+      {
+        "id": "jue",
+        "label": "Jueves"
+      },
+      {
+        "id": "vie",
+        "label": "Viernes"
+      },
+      {
+        "id": "vieN",
+        "label": "Viernes noche",
+        "night": true
+      },
+      {
+        "id": "sab",
+        "label": "Sábado"
+      },
+      {
+        "id": "sabN",
+        "label": "Sábado noche",
+        "night": true
+      },
+      {
+        "id": "dom",
+        "label": "Domingo"
+      }
+    ],
+    "roles": [
+      {
+        "id": "cam",
+        "label": "Camareros",
+        "min": 3
+      },
+      {
+        "id": "par",
+        "label": "Parrilla",
+        "min": 1
+      },
+      {
+        "id": "coc",
+        "label": "Cocineros",
+        "min": 2
+      }
+    ]
+  },
+  "pub": "2026-07-27"
 }
